@@ -11,8 +11,8 @@ export default function PressablePlanesButton({
   scale = [1, 1, 1],
 
   // Button styling/feel
-  size = [0.2, 0.2],            // base plate size (width, height) in world units
-  buttonScale = 0.7,            // smaller plate size relative to base
+  size = [0.1, 0.1],            // base plate size (width, height) in world units
+  buttonScale = 0.6,            // smaller plate size relative to base
   gap = 0.01,                   // initial gap above base (local +Y)
   speed = 12,                   // snappiness
   baseColor = '#60636a',
