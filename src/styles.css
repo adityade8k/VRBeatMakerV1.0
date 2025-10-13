@@ -1,0 +1,73 @@
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+#root {
+  background: #0b0b0f;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji;
+}
+
+/* Fullscreen overlay used for both Loading and Enter VR states */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(1200px 800px at 50% 30%, #12121a 0%, #0b0b0f 60%, #08080c 100%);
+  color: #d8d8e3;
+  z-index: 10;
+  opacity: 1;
+  transition: opacity 500ms ease-in-out;
+}
+
+.overlay.hidden {
+  pointer-events: none;
+  opacity: 0;
+}
+
+.loading-box {
+  display: grid;
+  gap: 10px;
+  place-items: center;
+}
+
+.loading-bar {
+  width: 260px;
+  height: 8px;
+  background: #1a1a22;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.loading-bar > div {
+  height: 100%;
+  width: 0%;
+  background: #7dd3fc;
+  transition: width 120ms linear;
+}
+
+.hint {
+  opacity: 0.75;
+  font-size: 0.9rem;
+}
+
+/* XR button */
+.xr-btn {
+  appearance: none;
+  border: 0;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: #7dd3fc;
+  color: #0b0b0f;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.xr-btn:hover {
+  filter: brightness(1.05);
+}
