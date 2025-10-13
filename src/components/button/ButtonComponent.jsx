@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 
-export default function ButtonComponent({ onPress = () => {}, travel = 0.012, speed = 10 }) {
+export default function ButtonComponent({ onClick = () => {}, travel = 0.1, speed = 10 }) {
   const { scene } = useGLTF('/models/button.glb')
 
   // Clone so we can safely mutate child transforms without touching the cache
@@ -43,7 +43,7 @@ export default function ButtonComponent({ onPress = () => {}, travel = 0.012, sp
     e.stopPropagation()
     if (!buuton) return
     setIsPressed(true)
-    onPress?.() // trigger your callback when it bottoms out (press start)
+    onClick?.() // trigger your callback when it bottoms out (press start)
   }
 
   const handlePointerUp = (e) => {
