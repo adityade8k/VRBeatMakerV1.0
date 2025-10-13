@@ -1,22 +1,25 @@
-import { Canvas } from '@react-three/fiber'
-import { XR, createXRStore } from '@react-three/xr'
 import { useState } from 'react'
+import { createXRStore } from '@react-three/xr'
+import SceneCanvas from './components/SceneCanavs.jsx'
 
 const store = createXRStore()
 
-function App() {
+export default function App() {
   const [red, setRed] = useState(false)
-  return <>
-    <button onClick={() => store.enterAR()}>Enter AR</button>
-    <Canvas>
-      <XR store={store}>
-        <mesh pointerEventsType={{ deny: 'grab' }} onClick={() => setRed(!red)} position={[0, 1, -1]}>
-          <boxGeometry />
-          <meshBasicMaterial color={red ? 'red' : 'blue'} />
-        </mesh>
-      </XR>
-    </Canvas>
-  </>
-}
 
-export default App
+  const modelPaths = [
+    '/models/button.glb',
+    '/models/dial.glb',
+    '/models/roller.glb',
+    '/models/switch.glb',
+  ]
+
+  return (
+    <>
+      <div style={{ position: 'fixed', zIndex: 10, padding: 12 }}>
+        <button onClick={() => store.enterVR()}>Enter VR</button>
+      </div>
+      <SceneCanvas store={store} paths={modelPaths} red={red} onToggleRed={() => setRed((v) => !v)} />
+    </>
+  )
+}
