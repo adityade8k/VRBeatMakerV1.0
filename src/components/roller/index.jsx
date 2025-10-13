@@ -16,18 +16,18 @@ export default function Roller({
   scale    = [1, 1, 1],
 
   // Base plate
-  size = [0.16, 0.12],          // width, height (world units)
+  size = [0.1, 0.1],          // width, height (world units)
   baseColor = '#6987f5',
 
   // Disk
   diskThickness = 0.035,        // thickness along its axis
-  diskSegments  = 48,
-  diskColor     = '#790a59',
+  diskSegments  = 8,
+  diskColor     = '#fc45c8',
 
   // Motion / output
   minValue = -1,                // normalized output range
   maxValue =  1,
-  friction = 0.92,              // 0..1 (higher = spins longer)
+  friction = 0.1,              // 0..1 (higher = spins longer)
   sensitivity = 1.0,            // multiplier for how fast it spins per unit push
   onValueChange = () => {},
 }) {
@@ -146,7 +146,7 @@ export default function Roller({
             We listen on the disk for pointer interactions. */}
         <mesh
           ref={diskRef}
-          position={[0, diskThickness * 0.5, 0]}   // lift slightly to avoid z-fighting with base edges
+          position={[0, 0, 0]}   // lift slightly to avoid z-fighting with base edges
           onPointerDown={onDown}
           onPointerUp={onUp}
           onPointerCancel={onUp}

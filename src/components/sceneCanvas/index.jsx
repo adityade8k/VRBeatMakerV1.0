@@ -70,10 +70,6 @@ export default function SceneCanvas({ store }) {
         {/* ROLLER (controls center cube Z) */}
         <Roller
           position={[0, 0.85, -0.35]}
-          size={[0.18, 0.12]}
-          diskThickness={0.04}
-          friction={0.9}
-          sensitivity={1.2}
           minValue={-1}
           maxValue={1}
           onValueChange={(v) => setRollerValue(v)}
