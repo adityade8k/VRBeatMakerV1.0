@@ -9,7 +9,7 @@ export default function SceneCanvas({ store, paths, red, onToggleRed }) {
         <mesh
           pointerEventsType={{ deny: 'grab' }}
           onClick={onToggleRed}
-          position={[0, 1, -1]}
+          position={[0, 1, -2]}
         >
           <boxGeometry />
           <meshBasicMaterial color={red ? 'red' : 'blue'} />
