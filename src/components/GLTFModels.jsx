@@ -23,7 +23,7 @@ function Model({ url, index, total }) {
   const radius = 1.2
   const angle = total > 1 ? THREE.MathUtils.mapLinear(index, 0, total - 1, -0.6, 0.6) : 0
   const x = index*0.2
-  const z = -0.2
+  const z = -0.8
   const y = 0.8
 
   return (
