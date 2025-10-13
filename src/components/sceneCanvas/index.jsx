@@ -32,7 +32,7 @@ export default function SceneCanvas({ store }) {
         {/* Long-press button controlling left cube */}
         <PressablePlanesButton
           mode="long-press"
-          position={[-0.2, 0.7, -0.6]}
+          position={[-0.2, 0.9, -0.45]}
           rotation={[0, 0, 0]}
           gap={0.012}
           baseColor="#6987f5"
@@ -44,7 +44,7 @@ export default function SceneCanvas({ store }) {
         {/* Toggle button controlling right cube */}
         <PressablePlanesButton
           mode="toggle"
-          position={[0.2, 0.7, -0.6]}
+          position={[0.2, 0.9, -0.45]}
           rotation={[0, 0, 0]}
           gap={0.012}
           onToggle={(isOn) => setCube2Blue(isOn)}

@@ -11,18 +11,22 @@ export default function PressablePlanesButton({
   onPressUp = () => {},                    // long-press only
   onToggle = () => {},                     // toggle only (onToggle(isOn))
 
+  // Toggle behavior guard
+  requireBottomForToggle = true,           // only toggle if plate reached bottom during this press
+  activationThreshold = 0.9,               // if you want to use a % travel instead of strict "nearBottom"
+
   // Outer transform
   position = [0, 1, -0.6],
   rotation = [0, 0, 0],
   scale = [1, 1, 1],
 
   // Button styling/feel
-  size = [0.1, 0.1],            // base plate size (width, height) in world units
-  buttonScale = 0.6,            // smaller plate size relative to base
-  gap = 0.01,                   // initial gap above base (local +Y)
-  speed = 12,                   // snappiness
-  baseColor = '#6987f5',        // used in long-press mode only
-  buttonColor = '#0370ff',    // starting color for button plate; lerps to yellow as it goes down
+  size = [0.1, 0.1],
+  buttonScale = 0.6,
+  gap = 0.01,
+  speed = 12,
+  baseColor = '#6987f5',
+  buttonColor = '#0370ff',
 }) {
   const baseRef = useRef()
   const btnRef = useRef()
@@ -32,6 +36,9 @@ export default function PressablePlanesButton({
   const [isPressed, setIsPressed] = useState(false)
   const [armed, setArmed] = useState(false)       // for onPressed once-per-bottom
   const [isOn, setIsOn] = useState(false)         // for toggle mode
+
+  // New: track whether this press ever reached activation depth
+  const committedPressRef = useRef(false)
 
   // Geometries
   const geoBase = useMemo(() => new THREE.PlaneGeometry(size[0], size[1]), [size])
@@ -53,7 +60,7 @@ export default function PressablePlanesButton({
     if (btnRef.current) btnRef.current.position.y = initialY.current
   }, [])
 
-  // Update base plate color when toggle state changes
+  // Update base plate color when toggle state or mode changes
   useEffect(() => {
     const mat = baseMatRef.current
     if (!mat) return
@@ -83,10 +90,14 @@ export default function PressablePlanesButton({
     // Lerp the button plate color toward yellow as it goes down
     btnMat.color.copy(cBtnStart).lerp(cBtnTarget, t)
 
-    // Fire onPressed exactly once when reaching bottom during a press
+    // Determine activation (either strict near-bottom or threshold)
     const nearBottom = Math.abs(next - bottomY.current) < 0.0008
-    if (isPressed && nearBottom && !armed) {
+    const activated = nearBottom || t >= activationThreshold
+
+    // Fire onPressed once at activation, and mark the press as "committed"
+    if (isPressed && activated && !armed) {
       setArmed(true)
+      committedPressRef.current = true
       onPressed()
     }
     if (!isPressed && armed) setArmed(false)
@@ -95,6 +106,8 @@ export default function PressablePlanesButton({
   const handlePointerDown = (e) => {
     e.stopPropagation()
     e.target.setPointerCapture?.(e.pointerId)
+    // Reset commitment for a new press
+    committedPressRef.current = false
     setIsPressed(true)
     if (mode === 'long-press') onPressDown()
   }
@@ -107,12 +120,18 @@ export default function PressablePlanesButton({
     if (mode === 'long-press') {
       onPressUp()
     } else if (mode === 'toggle') {
-      setIsOn((prev) => {
-        const next = !prev
-        onToggle(next)
-        return next
-      })
+      const canToggle = !requireBottomForToggle || committedPressRef.current
+      if (canToggle) {
+        setIsOn((prev) => {
+          const next = !prev
+          onToggle(next)
+          return next
+        })
+      }
     }
+
+    // Always reset after a completed press cycle
+    committedPressRef.current = false
   }
 
   return (
@@ -126,7 +145,7 @@ export default function PressablePlanesButton({
       onPointerCancel={handlePointerUp}
     >
       <Suspense fallback={null}>
-        {/* Base plate: rotate -90° around X so it faces up (+Y normal) */}
+        {/* Base plate */}
         <mesh ref={baseRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <primitive object={geoBase} attach="geometry" />
           <meshStandardMaterial
@@ -137,7 +156,7 @@ export default function PressablePlanesButton({
           />
         </mesh>
 
-        {/* Button plate: sits slightly above base along local +Y, lerps color to yellow as pressed */}
+        {/* Button plate */}
         <mesh ref={btnRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, initialY.current, 0]} castShadow>
           <primitive object={geoBtn} attach="geometry" />
           <meshStandardMaterial
