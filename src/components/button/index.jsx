@@ -1,52 +1,57 @@
-// button/ButtonComponent.jsx
+// button/PressablePlanesButton.jsx
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 
-export default function ButtonComponent({
+export default function PressablePlanesButton({
   onPressed = () => {},
-  travel = 0.012,          // press depth in local units (pre-scale)
-  speed = 10,              // snappiness
-  scale = [0.035, 0.035, 0.035],
   position = [0, 1, -0.5],
+  size = [0.2, 0.2],     // base plate size (width, height) in world units
+  buttonScale = 0.7,     // smaller plane scale relative to base
+  gap = 0.01,            // initial gap above base
+  speed = 12,            // snappiness of animation
+  baseColor = '#60636a',
+  buttonColor = '#d9e3f0',
 }) {
-  const { scene } = useGLTF('/models/button.glb')
-  const cloned = useMemo(() => scene.clone(true), [scene])
-
-  // Find child named "button" (tolerates earlier "buuton" typo).
-  const moving = useMemo(
-    () => cloned.getObjectByName('button') || cloned.getObjectByName('buuton') || null,
-    [cloned]
-  )
-
+  const baseRef = useRef()
+  const btnRef = useRef()
   const [isPressed, setIsPressed] = useState(false)
-  const initialY = useRef(0)
-  const fired = useRef(false)
+  const [armed, setArmed] = useState(false) // allow callback once per press
+
+  // Precompute geometry to avoid re-alloc each render
+  const geoBase = useMemo(() => new THREE.PlaneGeometry(size[0], size[1]), [size])
+  const geoBtn  = useMemo(() => new THREE.PlaneGeometry(size[0] * buttonScale, size[1] * buttonScale), [size, buttonScale])
+
+  // Initial & bottom Y positions (local to the group)
+  const initialY = useRef(gap)
+  const bottomY  = useRef(0.0005) // tiny epsilon to avoid z-fighting with base
 
   useEffect(() => {
-    if (!moving) {
-      console.warn('Button child "button"/"buuton" not found in button.glb')
-      return
+    if (btnRef.current) {
+      btnRef.current.position.y = initialY.current
     }
-    moving.matrixAutoUpdate = true
-    initialY.current = moving.position.y
-  }, [moving])
+  }, [])
 
+  // Animate button toward target each frame
   useFrame((_, dt) => {
-    if (!moving) return
-    const from = moving.position.y
-    const target = isPressed ? initialY.current - Math.abs(travel) : initialY.current
+    const btn = btnRef.current
+    if (!btn) return
+    const from = btn.position.y
+    const target = isPressed ? bottomY.current : initialY.current
+
+    // smooth exponential approach (frame-rate independent)
     const k = 1 - Math.exp(-speed * dt)
     const next = THREE.MathUtils.lerp(from, target, k)
-    moving.position.y = next
+    btn.position.y = next
 
-    const nearBottom = Math.abs(next - (initialY.current - Math.abs(travel))) < 0.001
-    if (isPressed && nearBottom && !fired.current) {
-      fired.current = true
+    // fire once when we hit bottom during a press
+    const nearBottom = Math.abs(next - bottomY.current) < 0.0008
+    if (isPressed && nearBottom && !armed) {
+      setArmed(true)
       onPressed()
     }
-    if (!isPressed) fired.current = false
+    // reset arming after release
+    if (!isPressed && armed) setArmed(false)
   })
 
   const onDown = (e) => {
@@ -62,17 +67,26 @@ export default function ButtonComponent({
 
   return (
     <group
-      pointerEventsType={{ deny: 'grab' }}  // keep grabs from stealing the event
+      position={position}
+      // unified pointer events in XR & desktop; deny grabs so pokes/clicks win
+      pointerEventsType={{ deny: 'grab' }}
       onPointerDown={onDown}
       onPointerUp={onUp}
-      onPointerCancel={onUp}
       onPointerOut={() => setIsPressed(false)}
-      position={position}
+      onPointerCancel={onUp}
     >
       <Suspense fallback={null}>
-        <group scale={scale}>
-          <primitive object={cloned} />
-        </group>
+        {/* Base plate (XY plane, facing +Z). Keep at y≈0. */}
+        <mesh ref={baseRef} rotation={[-Math.PI * 0, 0, 0]} receiveShadow>
+          <primitive object={geoBase} attach="geometry" />
+          <meshStandardMaterial color={baseColor} metalness={0.1} roughness={0.8} />
+        </mesh>
+
+        {/* Button plate slightly above base on +Y, same facing */}
+        <mesh ref={btnRef} position={[0, initialY.current, 0]} castShadow>
+          <primitive object={geoBtn} attach="geometry" />
+          <meshStandardMaterial color={buttonColor} metalness={0.2} roughness={0.4} />
+        </mesh>
       </Suspense>
     </group>
   )
