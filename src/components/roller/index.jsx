@@ -22,7 +22,7 @@ export default function Roller({
   // Disk
   diskThickness = 0.035,        // thickness along its axis
   diskSegments  = 48,
-  diskColor     = '#111827',
+  diskColor     = '#790a59',
 
   // Motion / output
   minValue = -1,                // normalized output range
@@ -147,7 +147,6 @@ export default function Roller({
         <mesh
           ref={diskRef}
           position={[0, diskThickness * 0.5, 0]}   // lift slightly to avoid z-fighting with base edges
-          castShadow
           onPointerDown={onDown}
           onPointerUp={onUp}
           onPointerCancel={onUp}

@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { XR } from '@react-three/xr'
 import PressablePlanesButton from '../button'
-import Roller from '../roller/Roller'
+import Roller from '../roller'
 
 export default function SceneCanvas({ store }) {
   // Cube colors (both start red)
