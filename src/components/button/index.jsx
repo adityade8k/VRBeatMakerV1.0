@@ -71,7 +71,7 @@ export default function PressablePlanesButton({
       position={position}
       rotation={rotation}
       scale={scale}
-      pointerEventsType={{ deny: 'grab' }}
+      // pointerEventsType={{ deny: 'grab' }}
       onPointerDown={onDown}
       onPointerUp={onUp}
       onPointerOut={() => setIsPressed(false)}
