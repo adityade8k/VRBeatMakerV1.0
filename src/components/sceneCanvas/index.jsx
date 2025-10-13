@@ -11,8 +11,8 @@ export default function SceneCanvas({ store }) {
         <directionalLight position={[2, 3, 1]} intensity={0.9} />
 
         <PressablePlanesButton
-          position={[0, 0.9, -0.4]}
-          rotation={[0, 0, 0]}   // rotate the entire button if you want
+          position={[0, 1, -0.5]}
+          rotation={[Math.PI/2, 0, 0]}   // rotate the entire button if you want
           gap={0.012}
           onPressed={() => console.log('Pressed!')}
         />
