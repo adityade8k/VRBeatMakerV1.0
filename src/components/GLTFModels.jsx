@@ -23,11 +23,11 @@ function Model({ url, index, total }) {
   const radius = 1.2
   const angle = total > 1 ? THREE.MathUtils.mapLinear(index, 0, total - 1, -0.6, 0.6) : 0
   const x = index*0.8
-  const z = 0
-  const y = 0.5
+  const z = 0.2
+  const y = 0.7
 
   return (
-    <group position={[x-1, y, z]} rotation={[0, 0, 0]} scale = {[0.25, 0.25, 0.25]}>
+    <group position={[x-1, y, z]} rotation={[0, 0, 0]} scale = {[0.025, 0.025, 0.025]}>
       <primitive object={gltf.scene} />
     </group>
   )
