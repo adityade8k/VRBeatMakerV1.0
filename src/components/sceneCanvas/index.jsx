@@ -43,7 +43,7 @@ export default function SceneCanvas({ store }) {
 
         <Piano
           origin={[0, 0.85, -0.35]}
-          keySpacing={0.22}
+          keySpacing={0.11}
           size={[0.1, 0.1]}
           buttonScale={0.65}
           gap={0.012}
