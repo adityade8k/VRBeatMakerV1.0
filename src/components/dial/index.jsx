@@ -34,7 +34,8 @@ export default function Dial({
   // Behavior
   hardStops = true,
 
-  onValueChange = () => {}, onChange
+  // Unified callback (normalized 0..1)
+  onChange = () => {},
 }) {
   const groupRef = useRef()
   const baseRef  = useRef()
@@ -72,7 +73,6 @@ export default function Dial({
     const a = valueToAngle(value)
     externalSet.current = true
     setAngle(a)
-    // we don't emit here; emit guard prevents loops anyway
   }, [value, minAngle, angleSpan])
 
   const getPointerAngleLocal = (worldPoint) => {
@@ -88,7 +88,7 @@ export default function Dial({
       if (externalSet.current) {
         externalSet.current = false
       } else {
-        (onValueChange || onChange)?.(t01) // normalized 0..1
+        onChange?.(t01) // normalized 0..1
       }
     }
   }
@@ -161,7 +161,7 @@ export default function Dial({
     const a0 = clamp(initialAngle, minAngle, maxAngle)
     setAngle(a0)
     emitNormalizedIfChanged(a0)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialAngle, minAngle, maxAngle])
 
   return (
