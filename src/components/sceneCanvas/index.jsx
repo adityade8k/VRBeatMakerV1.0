@@ -1,10 +1,83 @@
 // SceneCanvas.jsx
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useMemo as useM } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { XR } from '@react-three/xr'
-import { Html } from '@react-three/drei'
+import { Text, Billboard } from '@react-three/drei'
 import WaveTypeSelector from '../../packages/WaveTypeSelector'
 import ADSRController from '../../packages/ADSRController.jsx'
+
+function SynthValues3D({ synth, position = [0.55, 1.2, -0.55] }) {
+  const fmtSec = (s) => `${Number.isFinite(s) ? s.toFixed(2) : '0.00'}s`
+  const fmtPct = (p) => `${Number.isFinite(p) ? Math.round(p * 100) : 0}%`
+
+  const lines = useM(() => ([
+    `Waveform : ${synth.waveform}`,
+    `Attack   : ${fmtSec(synth.attack)}`,
+    `Decay    : ${fmtSec(synth.decay)}`,
+    `Sustain  : ${fmtPct(synth.sustain)}`,
+    `Release  : ${fmtSec(synth.release)}`,
+    `Duration : ${fmtSec(synth.duration)}`
+  ]), [synth])
+
+  const width = 0.52
+  const lineH = 0.06
+  const padX = 0.06
+  const padY = 0.08
+  const height = padY * 2 + lines.length * lineH + 0.04
+
+  return (
+    <Billboard position={position} follow lockX={false} lockY={false} lockZ={false}>
+      {/* Panel background */}
+      <mesh position={[0, -height * 0.5 + 0.02, 0]}>
+        <planeGeometry args={[width + padX * 2, height]} />
+        <meshBasicMaterial color="#0f172a" transparent opacity={0.65} />
+      </mesh>
+
+      {/* Title */}
+      <Text
+        position={[-(width * 0.5), 0, 0.001]}
+        fontSize={0.05}
+        color="#e5e7eb"
+        anchorX="left"
+        anchorY="top"
+      >
+        Synth Params
+      </Text>
+
+      {/* Values */}
+      {lines.map((t, i) => (
+        <Text
+          key={i}
+          position={[
+            -(width * 0.5),
+            -(i + 1) * lineH - 0.02,
+            0.001
+          ]}
+          fontSize={0.045}
+          color="#cbd5e1"
+          anchorX="left"
+          anchorY="top"
+          maxWidth={width}
+          lineHeight={1.1}
+          font="https://fonts.gstatic.com/s/robotomono/v22/L0x7DF4xlVMF-BfR8bXMIjhGq3qSb9E.woff" // monospace feel (optional)
+        >
+          {t}
+        </Text>
+      ))}
+
+      {/* Thin border */}
+      <mesh position={[0, -height * 0.5 + 0.02, 0.002]}>
+        <planeGeometry args={[width + padX * 2, height]} />
+        <meshBasicMaterial
+          color="#94a3b8"
+          wireframe
+          transparent
+          opacity={0.35}
+        />
+      </mesh>
+    </Billboard>
+  )
+}
 
 export default function SceneCanvas({ store }) {
   const [synth, setSynth] = useState({
@@ -34,9 +107,6 @@ export default function SceneCanvas({ store }) {
     release: synth.release,
     duration: synth.duration,
   }), [synth])
-
-  const fmtSec = (s) => `${Number.isFinite(s) ? s.toFixed(2) : '0.00'}s`
-  const fmtPct = (p) => `${Number.isFinite(p) ? Math.round(p * 100) : 0}%`
 
   return (
     <Canvas dpr={[1, 2]} camera={{ position: [0, 1.2, 2.2], fov: 60 }}>
@@ -70,39 +140,8 @@ export default function SceneCanvas({ store }) {
           onChange={handleADSRChange}
         />
 
-        {/* Live values panel (DOM overlay inside canvas) */}
-        <Html
-          fullscreen
-          style={{ pointerEvents: 'none' }} // keep scene interactive
-        >
-          <div style={{
-            position: 'absolute',
-            top: 16,
-            left: 16,
-            pointerEvents: 'auto',
-            background: 'rgba(15, 23, 42, 0.75)',
-            color: '#e5e7eb',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-            border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 12,
-            padding: '10px 12px',
-            minWidth: 220,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
-            backdropFilter: 'blur(6px)'
-          }}>
-            <div style={{ fontWeight: 700, letterSpacing: 0.4, marginBottom: 6 }}>
-              Synth Params
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr', rowGap: 4, columnGap: 8, fontSize: 13, lineHeight: 1.3 }}>
-              <span>Waveform</span><span style={{ fontWeight: 600 }}>{synth.waveform}</span>
-              <span>Attack</span>  <span style={{ fontWeight: 600 }}>{fmtSec(synth.attack)}</span>
-              <span>Decay</span>   <span style={{ fontWeight: 600 }}>{fmtSec(synth.decay)}</span>
-              <span>Sustain</span> <span style={{ fontWeight: 600 }}>{fmtPct(synth.sustain)}</span>
-              <span>Release</span> <span style={{ fontWeight: 600 }}>{fmtSec(synth.release)}</span>
-              <span>Duration</span><span style={{ fontWeight: 600 }}>{fmtSec(synth.duration)}</span>
-            </div>
-          </div>
-        </Html>
+        {/* 3D values panel (faces the camera, updates automatically) */}
+        <SynthValues3D synth={synth} position={[0.6, 1.15, -0.6]} />
       </XR>
     </Canvas>
   )
