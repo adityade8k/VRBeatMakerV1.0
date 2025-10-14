@@ -110,8 +110,8 @@ export default function ADSRController({
             diskColor={rollerColor}
             minValue={0}
             maxValue={1}
-            friction={0.94}     // smoother; 0.94 retains some spin, avoids jittery spam
-            sensitivity={0.8}   // responsive but not crazy
+            friction={0.5}     // smoother; 0.94 retains some spin, avoids jittery spam
+            sensitivity={0.5}   // responsive but not crazy
             onValueChange={(t) => {
               const v = lerp(range[0], range[1], t)  // t assumed 0..1 from Roller
               if (key === 'A') emitIfChanged({ attack: v })
@@ -142,8 +142,8 @@ export default function ADSRController({
           initialAngle={0}
           minValue={0}
           maxValue={1}
-          sensitivity={0.6}
-          friction={0.92}
+          sensitivity={0.5}
+          friction={0.5}
           onValueChange={(t) => {
             const v = lerp(DUR[0], DUR[1], t) // t assumed 0..1 from Dial
             emitIfChanged({ duration: v })
