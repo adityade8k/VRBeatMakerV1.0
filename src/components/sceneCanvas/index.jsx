@@ -69,7 +69,6 @@ export default function SceneCanvas({ store }) {
           position={[-0.35, 0.95, -0.45]}
           rotation={[0, 0, 0]}
           gap={0.012}
-          baseColor="#6987f5"
           onPressDown={() => setCube1Blue(true)}
           onPressUp={() => setCube1Blue(false)}
           onPressed={() => console.log('Long-press bottom reached')}
