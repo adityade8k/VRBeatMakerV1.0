@@ -11,9 +11,9 @@ import { useToneSynth } from '../../hooks/useToneSynth'
  * - Master chain: Compressor -> Volume -> Destination (same as your example)
  */
 function Piano({
-  origin = [0, 1, -0.6],
+  origin = [0, 0.85, -0.35],
   keySpacing = 0.22,
-  size = [0.16, 0.16],
+  size = [0.1, 0.1],
   buttonScale = 0.65,
   gap = 0.012,
   speed = 12,

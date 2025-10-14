@@ -42,9 +42,9 @@ export default function SceneCanvas({ store }) {
         <directionalLight position={[2, 3, 1]} intensity={0.9} />
 
         <Piano
-          origin={[0, 1, -0.35]}
+          origin={[0, 0.85, -0.35]}
           keySpacing={0.22}
-          size={[0.16, 0.16]}
+          size={[0.1, 0.1]}
           buttonScale={0.65}
           gap={0.012}
           speed={12}
