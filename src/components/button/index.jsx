@@ -141,7 +141,7 @@ export default function PressablePlanesButton({
       scale={scale}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
-      onPointerOut={() => setIsPressed(false)}
+      onPointerOut={handlePointerUp}
       onPointerCancel={handlePointerUp}
     >
       <Suspense fallback={null}>
