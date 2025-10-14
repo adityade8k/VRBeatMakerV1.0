@@ -34,7 +34,7 @@ export default function Dial({
   // Behavior
   hardStops = true,
 
-  onValueChange = () => {},
+  onValueChange = () => {}, onChange
 }) {
   const groupRef = useRef()
   const baseRef  = useRef()
@@ -88,7 +88,7 @@ export default function Dial({
       if (externalSet.current) {
         externalSet.current = false
       } else {
-        onValueChange(t01) // normalized 0..1
+        (onValueChange || onChange)?.(t01) // normalized 0..1
       }
     }
   }

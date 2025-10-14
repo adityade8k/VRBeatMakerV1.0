@@ -28,7 +28,7 @@ export default function Roller({
   hardStops = true,
   friction = 0.92,
   sensitivity = 1.0,
-  onValueChange = () => {},
+  onValueChange = () => {}, onChange
 }) {
   const groupRef = useRef()
   const baseRef  = useRef()
@@ -157,7 +157,7 @@ export default function Roller({
       if (externalSet.current) {
         externalSet.current = false
       } else {
-        onValueChange((valueRef.current - minValue) / span) // 0..1
+        (onValueChange || onChange)?.((valueRef.current - minValue) / span) // 0..1
       }
     }
 
