@@ -153,6 +153,8 @@ export default function PressablePlanesButton({
             color={mode === 'toggle' ? (isOn ? cBaseOn : cBaseOff) : cBaseLongPress}
             metalness={0.1}
             roughness={0.8}
+            transparent
+            opacity={0.6}
           />
         </mesh>
 
@@ -164,8 +166,7 @@ export default function PressablePlanesButton({
             color={cBtnStart}
             metalness={0.2}
             roughness={0.4}
-            transparent
-            opacity={0.6}
+            
           />
         </mesh>
       </Suspense>

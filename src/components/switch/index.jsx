@@ -38,8 +38,8 @@ export default function ToggleSwitch({
   // Feel
   tiltOn  =  +0.6,           // ~34°
   tiltOff =  -0.6,           // ~-34°
-  sensitivity = 5,         // angle per unit Z (local) while dragging
-  speed = 12,                // smoothing lerp speed (higher = snappier)
+  sensitivity = 10,         // angle per unit Z (local) while dragging
+  speed = 20,                // smoothing lerp speed (higher = snappier)
 
   // State
   isOn: controlledOn,
@@ -134,7 +134,8 @@ export default function ToggleSwitch({
         {/* Base: face up */}
         <mesh ref={baseRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <primitive object={baseGeo} attach="geometry" />
-          <meshStandardMaterial color={baseColor} metalness={0.1} roughness={0.8} />
+          <meshStandardMaterial color={baseColor} metalness={0.1} roughness={0.8} transparent
+            opacity={0.6} />
         </mesh>
 
         {/* Hinge at stem base (on top of plate) */}

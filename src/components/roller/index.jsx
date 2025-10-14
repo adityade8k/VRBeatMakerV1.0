@@ -139,7 +139,8 @@ export default function Roller({
         {/* Base: rotate -90° about X so it faces up (+Y normal) */}
         <mesh ref={baseRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <primitive object={baseGeo} attach="geometry" />
-          <meshStandardMaterial color={baseColor} metalness={0.1} roughness={0.8} />
+          <meshStandardMaterial color={baseColor} metalness={0.1} roughness={0.8} transparent
+            opacity={0.6}/>
         </mesh>
 
         {/* Disk (roller): centered at origin, faces perpendicular to the base.
