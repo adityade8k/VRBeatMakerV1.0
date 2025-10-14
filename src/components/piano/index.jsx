@@ -16,7 +16,7 @@ function Piano({
   size = [0.1, 0.1],
   buttonScale = 0.65,
   gap = 0.006,
-  speed = 20
+  speed = 50
 }) {
   const {
     noteOn, noteOff,
