@@ -18,7 +18,6 @@ export default function SceneCanvas({ store }) {
 
   // Updaters
   const setWaveform = (wave) => setSynth((s) => ({ ...s, waveform: wave }))
-  const patchSynth  = (patch) => setSynth((s) => ({ ...s, ...patch }))
 
   return (
     <Canvas dpr={[1, 2]} camera={{ position: [0, 1.2, 2.2], fov: 60 }}>
@@ -49,7 +48,7 @@ export default function SceneCanvas({ store }) {
           sustain={synth.sustain}
           release={synth.release}
           duration={synth.duration}
-          onChange={patchSynth}       // receives {attack, decay, sustain, release, duration}
+          onChange={(patch) => setSynth((s) => ({ ...s, ...patch }))}     // receives {attack, decay, sustain, release, duration}
         />
       </XR>
     </Canvas>
