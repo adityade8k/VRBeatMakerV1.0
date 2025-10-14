@@ -46,8 +46,6 @@ export default function SceneCanvas({ store }) {
           keySpacing={0.11}
           size={[0.1, 0.1]}
           buttonScale={0.65}
-          gap={0.012}
-          speed={12}
         />
 
         
