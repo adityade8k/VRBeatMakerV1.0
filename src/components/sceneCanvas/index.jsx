@@ -82,10 +82,6 @@ export default function SceneCanvas({ store }) {
         {/* CONTROLS */}
         <Roller
           position={[-0.15, 0.85, -0.35]}
-          size={[0.18, 0.12]}
-          diskThickness={0.04}
-          friction={0.9}
-          sensitivity={1.2}
           minValue={-1}
           maxValue={1}
           onValueChange={(v) => setRollerValue(v)}
@@ -93,10 +89,6 @@ export default function SceneCanvas({ store }) {
 
         <Dial
           position={[0.15, 0.85, -0.35]}
-          size={[0.18, 0.12]}
-          dialThickness={0.022}
-          minAngle={-Math.PI * 0.7}
-          maxAngle={ Math.PI * 0.7}
           initialAngle={0}
           minValue={-1}
           maxValue={1}

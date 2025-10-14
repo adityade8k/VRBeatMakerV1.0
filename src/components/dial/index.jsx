@@ -1,12 +1,14 @@
 // dial/Dial.jsx
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
 /**
  * Dial: base plate (plane) + flat disk (cylinder) that rotates around +Y.
  * - Faces parallel to base; axis is +Y (default Cylinder orientation).
- * - Drag on the disk surface to rotate between minAngle..maxAngle (radians).
+ * - Drag to rotate; clamp to [minAngle, maxAngle].
+ * - sensitivity: scales how much rotation per pointer movement.
+ * - friction: inertial decay factor (0..1) applied every frame when spinning.
  * - Emits normalized value via onValueChange in [minValue, maxValue].
  */
 export default function Dial({
@@ -20,17 +22,21 @@ export default function Dial({
   baseColor = '#6987f5',
 
   // Dial (disk)
-  dialThickness = 0.02,         // along Y
+  dialThickness = 0.02,       // along Y
   dialSegments  = 16,
   dialColor     = '#f08c00',
 
   // Range + output
-  minAngle = -Math.PI * 0.75,   // -135°
-  maxAngle =  Math.PI * 0.75,   // +135°
+  minAngle = -Math.PI * 0.75, // -135°
+  maxAngle =  Math.PI * 0.75, // +135°
   initialAngle = 0,
   minValue = -1,
   maxValue =  1,
   onValueChange = () => {},
+
+  // New: control feel
+  sensitivity = 1.0,          // pointer-to-angle multiplier
+  friction    = 0.1,         // 0..1 (higher = spins longer)
 }) {
   const groupRef = useRef()
   const baseRef  = useRef()
@@ -50,12 +56,16 @@ export default function Dial({
     [dialRadius, dialThickness, dialSegments]
   )
 
-  // Drag state
+  // Drag/inertia state
   const dragging = useRef(false)
-  const angleOffset = useRef(0)   // dial.rotation.y - pointerAngle at drag start
-
+  const lastPointerAngle = useRef(0)   // last atan2(x, z) while dragging
+  const spinVel = useRef(0)            // angular velocity (radians/frame)
+  const lastEmitted = useRef(NaN)      // to avoid spammy onValueChange
   const tmp = useMemo(() => new THREE.Vector3(), [])
+
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x))
+  const getAngle = () => (dialRef.current?.rotation.y ?? 0)
+  const setAngle = (a) => { if (dialRef.current) dialRef.current.rotation.y = a }
 
   const getPointerAngleLocal = (worldPoint) => {
     // Convert world -> local (dial group space)
@@ -65,23 +75,22 @@ export default function Dial({
     return Math.atan2(tmp.x, tmp.z)
   }
 
-  const applyAngle = (angle) => {
-    const a = clamp(angle, minAngle, maxAngle)
-    if (dialRef.current) dialRef.current.rotation.y = a
-
-    // Map angle to normalized value
+  const emitValueFromAngle = (a) => {
     const t = (a - minAngle) / (maxAngle - minAngle) // 0..1
     const v = minValue + t * (maxValue - minValue)
-    onValueChange(v)
+    if (v !== lastEmitted.current) {
+      lastEmitted.current = v
+      onValueChange(v)
+    }
   }
 
   const onDown = (e) => {
     e.stopPropagation()
     e.target.setPointerCapture?.(e.pointerId)
     dragging.current = true
-    const pointerA = getPointerAngleLocal(e.point)
-    const currentA = dialRef.current?.rotation.y ?? 0
-    angleOffset.current = currentA - pointerA
+    lastPointerAngle.current = getPointerAngleLocal(e.point)
+    // On grab, lightly damp velocity so it feels stable
+    spinVel.current *= 0.5
   }
 
   const onUp = (e) => {
@@ -93,13 +102,50 @@ export default function Dial({
   const onMove = (e) => {
     if (!dragging.current) return
     e.stopPropagation()
-    const pointerA = getPointerAngleLocal(e.point)
-    const desired = pointerA + angleOffset.current
-    applyAngle(desired)
+
+    const currentPointer = getPointerAngleLocal(e.point)
+    // Smallest signed angular delta between angles
+    let dA = currentPointer - lastPointerAngle.current
+    // Wrap to [-PI, PI] to avoid jumps across branch cut
+    dA = Math.atan2(Math.sin(dA), Math.cos(dA))
+
+    lastPointerAngle.current = currentPointer
+
+    // Apply sensitivity; add to velocity for inertial feel
+    spinVel.current += dA * sensitivity
   }
 
+  // Per-frame: integrate velocity, clamp, apply friction, emit value
+  useFrame(() => {
+    if (!dialRef.current) return
+
+    let a = getAngle()
+
+    // Integrate velocity
+    a += spinVel.current
+
+    // Clamp to limits; if we hit a boundary, reflect or zero velocity
+    if (a < minAngle) {
+      a = minAngle
+      // If still pushing outwards, kill outward component
+      if (spinVel.current < 0) spinVel.current = 0
+    } else if (a > maxAngle) {
+      a = maxAngle
+      if (spinVel.current > 0) spinVel.current = 0
+    }
+
+    setAngle(a)
+    emitValueFromAngle(a)
+
+    // Friction decay
+    spinVel.current *= friction
+    if (Math.abs(spinVel.current) < 1e-5) spinVel.current = 0
+  })
+
   useEffect(() => {
-    applyAngle(initialAngle)
+    const a = clamp(initialAngle, minAngle, maxAngle)
+    setAngle(a)
+    emitValueFromAngle(a)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialAngle, minAngle, maxAngle, minValue, maxValue])
 
