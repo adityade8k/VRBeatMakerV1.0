@@ -6,13 +6,18 @@ import Dial from '../../components/dial'
 
 /**
  * ADSRController
- * - 4 Rollers: Attack, Decay, Sustain, Release (all normalized 0..1 from Roller)
- * - 1 Dial: Note Duration (normalized 0..1, mapped to seconds)
+ * - 4 Rollers in a 2×2 grid (A D / S R)
+ * - 1 Dial centered below the grid
  * - Controlled: parent passes values; we call onChange with updated fields.
  */
 export default function ADSRController({
   position = [0, 1, -0.9],
-  spacingX = 0.16,            // distance between ADSR rollers on X
+
+  // Grid spacing
+  gridSpacingX = 0.16,        // horizontal gap between left/right columns
+  gridSpacingZ = 0.12,        // vertical gap between top/bottom rows (toward -Z is "down"/farther)
+
+  // Control sizes/colors
   size = [0.09, 0.09],
   waveBaseColor = '#324966',
   rollerColor = '#fc45c8',
@@ -26,7 +31,7 @@ export default function ADSRController({
   release = 0.2,   // seconds
   duration = 0.5,  // seconds
 
-  // Ranges (tweak to taste)
+  // Ranges
   A_RANGE = [0.005, 2.0],
   D_RANGE = [0.01,  2.0],
   S_RANGE = [0.0,   1.0],
@@ -37,8 +42,9 @@ export default function ADSRController({
 }) {
   const lerp = (a, b, t) => a + (b - a) * t
   const invLerp = (a, b, v) => (v - a) / (b - a)
+  const clamp01 = (t) => Math.min(1, Math.max(0, t))
 
-  // Normalized defaults from controlled values (so knobs reflect current state)
+  // Normalized defaults from controlled values
   const aNorm = useMemo(() => invLerp(A_RANGE[0], A_RANGE[1], attack), [attack, A_RANGE])
   const dNorm = useMemo(() => invLerp(D_RANGE[0], D_RANGE[1], decay),  [decay, D_RANGE])
   const sNorm = useMemo(() => invLerp(S_RANGE[0], S_RANGE[1], sustain),[sustain, S_RANGE])
@@ -47,27 +53,32 @@ export default function ADSRController({
 
   // Emit helpers (update one field, keep others)
   const emit = useCallback((patch) => {
-    onChange({
-      attack, decay, sustain, release, duration,
-      ...patch,
-    })
+    onChange({ attack, decay, sustain, release, duration, ...patch })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attack, decay, sustain, release, duration, onChange])
 
-  // Layout
+  // 2×2 grid layout (Z negative is "down"/farther from camera)
+  // Top row: A (left), D (right) at z = 0
+  // Bottom row: S (left), R (right) at z = -gridSpacingZ
+  const halfX = gridSpacingX * 0.5
+  const topZ = 0
+  const bottomZ = -gridSpacingZ
+
   const rollers = useMemo(() => ([
-    { key: 'A', label: 'Attack',  x: -1.5 * spacingX, range: A_RANGE, norm: aNorm },
-    { key: 'D', label: 'Decay',   x: -0.5 * spacingX, range: D_RANGE, norm: dNorm },
-    { key: 'S', label: 'Sustain', x:  0.5 * spacingX, range: S_RANGE, norm: sNorm },
-    { key: 'R', label: 'Release', x:  1.5 * spacingX, range: R_RANGE, norm: rNorm },
-  ]), [spacingX, A_RANGE, D_RANGE, S_RANGE, R_RANGE, aNorm, dNorm, sNorm, rNorm])
+    { key: 'A', label: 'Attack',  x: -halfX, z: topZ,    range: A_RANGE, norm: aNorm },
+    { key: 'D', label: 'Decay',   x:  halfX, z: topZ,    range: D_RANGE, norm: dNorm },
+    { key: 'S', label: 'Sustain', x: -halfX, z: bottomZ, range: S_RANGE, norm: sNorm },
+    { key: 'R', label: 'Release', x:  halfX, z: bottomZ, range: R_RANGE, norm: rNorm },
+  ]), [halfX, topZ, bottomZ, A_RANGE, D_RANGE, S_RANGE, R_RANGE, aNorm, dNorm, sNorm, rNorm])
+
+  // Dial centered below the grid (a bit farther on -Z)
+  const dialZ = bottomZ + (gridSpacingZ * 0.9)
 
   return (
     <group position={position}>
-      {/* ADSR Rollers */}
-      {rollers.map(({ key, label, x, range, norm }) => (
-        <group key={key} position={[x, 0, 0]}>
-          {/* Label above */}
+      {/* ADSR Rollers (2×2) */}
+      {rollers.map(({ key, label, x, z, range }) => (
+        <group key={key} position={[x, 0, z]}>
           <Text
             position={[0, 0.06, 0]}
             fontSize={0.035}
@@ -85,10 +96,10 @@ export default function ADSRController({
             diskColor={rollerColor}
             minValue={0}
             maxValue={1}
-            friction={0.94}
-            sensitivity={1.0}
+            friction={0.1}
+            sensitivity={0.1}
             onValueChange={(t) => {
-              const v = lerp(range[0], range[1], Math.min(1, Math.max(0, t)))
+              const v = lerp(range[0], range[1], clamp01(t))
               if (key === 'A') emit({ attack: v })
               if (key === 'D') emit({ decay: v })
               if (key === 'S') emit({ sustain: v })
@@ -98,8 +109,8 @@ export default function ADSRController({
         </group>
       ))}
 
-      {/* Duration Dial (to the right, a bit forward so it doesn't overlap) */}
-      <group position={[2.25 * spacingX, 0, -0.02]}>
+      {/* Duration Dial (below, centered) */}
+      <group position={[0, 0, dialZ]}>
         <Text
           position={[0, 0.08, 0]}
           fontSize={0.035}
@@ -120,10 +131,10 @@ export default function ADSRController({
           initialAngle={0}
           minValue={0}
           maxValue={1}
-          sensitivity={0.6}
-          friction={0.92}
+          sensitivity={0.1}
+          friction={0.1}
           onValueChange={(t) => {
-            const v = lerp(DUR_RANGE[0], DUR_RANGE[1], Math.min(1, Math.max(0, t)))
+            const v = lerp(DUR_RANGE[0], DUR_RANGE[1], clamp01(t))
             emit({ duration: v })
           }}
         />
