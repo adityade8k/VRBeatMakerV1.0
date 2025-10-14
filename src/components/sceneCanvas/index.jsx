@@ -37,7 +37,7 @@ export default function SceneCanvas({ store }) {
 
         {/* ADSR + Duration Controller */}
         <ADSRController
-          position={[0, 0.78, -0.55]}
+          position={[0, 0.78, -0.35]}
           spacingX={0.16}
           size={[0.085, 0.085]}
           attack={adsr.attack}
