@@ -34,10 +34,12 @@ export default function ADSRController({
 
   onChange = () => {},
 }) {
-  const EPS = 1e-3; // minimum change before we push state
+  const EPS = 1e-3
 
   const clamp01 = (t) => (Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : 0)
-  const lerp = (a, b, t) => a + (b - a) * clamp01(t)
+  const lerp    = (a, b, t) => a + (b - a) * clamp01(t)
+  const to01    = (v, [a, b]) => (v - a) / Math.max(1e-6, b - a)
+  const from01  = (t, [a, b]) => a + t * (b - a)
 
   const fmtSec = (s) => `${Number.isFinite(s) ? s.toFixed(2) : '0.00'}s`
   const fmtPct = (p) => `${Number.isFinite(p) ? Math.round(p * 100) : 0}%`
@@ -49,27 +51,23 @@ export default function ADSRController({
     }
     return r
   }
-  const A = ensureRange('A_RANGE', A_RANGE)
-  const D = ensureRange('D_RANGE', D_RANGE)
-  const S = ensureRange('S_RANGE', S_RANGE)
-  const R = ensureRange('R_RANGE', R_RANGE)
+  const A   = ensureRange('A_RANGE', A_RANGE)
+  const D   = ensureRange('D_RANGE', D_RANGE)
+  const S   = ensureRange('S_RANGE', S_RANGE)
+  const R   = ensureRange('R_RANGE', R_RANGE)
   const DUR = ensureRange('DUR_RANGE', DUR_RANGE)
 
-  // Last emitted values (to avoid spam + jitter)
+  // last emitted snapshot to avoid spam
   const last = useRef({ attack, decay, sustain, release, duration })
 
   const emitIfChanged = useCallback((patch) => {
-    // Build candidate next
-    const next = {
-      attack, decay, sustain, release, duration,
-      ...patch,
-    }
+    const next = { attack, decay, sustain, release, duration, ...patch }
     const diff =
-      Math.abs((next.attack  ?? 0) - (last.current.attack  ?? 0)) > EPS ||
-      Math.abs((next.decay   ?? 0) - (last.current.decay   ?? 0)) > EPS ||
-      Math.abs((next.sustain ?? 0) - (last.current.sustain ?? 0)) > EPS ||
-      Math.abs((next.release ?? 0) - (last.current.release ?? 0)) > EPS ||
-      Math.abs((next.duration?? 0) - (last.current.duration?? 0)) > EPS
+      Math.abs((next.attack   ?? 0) - (last.current.attack   ?? 0)) > EPS ||
+      Math.abs((next.decay    ?? 0) - (last.current.decay    ?? 0)) > EPS ||
+      Math.abs((next.sustain  ?? 0) - (last.current.sustain  ?? 0)) > EPS ||
+      Math.abs((next.release  ?? 0) - (last.current.release  ?? 0)) > EPS ||
+      Math.abs((next.duration ?? 0) - (last.current.duration ?? 0)) > EPS
 
     if (diff) {
       last.current = next
@@ -77,8 +75,9 @@ export default function ADSRController({
     }
   }, [attack, decay, sustain, release, duration, onChange])
 
-  const halfX = Number.isFinite(gridSpacingX) ? gridSpacingX * 0.5 : 0.08
-  const topZ = 0
+  // layout
+  const halfX   = Number.isFinite(gridSpacingX) ? gridSpacingX * 0.5 : 0.08
+  const topZ    = 0
   const bottomZ = Number.isFinite(gridSpacingZ) ? -gridSpacingZ : -0.12
 
   const rollers = useMemo(() => ([
@@ -88,7 +87,7 @@ export default function ADSRController({
     { key: 'R', label: 'Release', x:  halfX, z: bottomZ, range: R,   value: release, fmt: fmtSec },
   ]), [halfX, topZ, bottomZ, A, D, S, R, attack, decay, sustain, release])
 
-  // Put dial a bit further “down” (away from camera)
+  // dial below (farther on -Z)
   const dialZ = bottomZ - (Math.abs(gridSpacingZ) * 0.9)
 
   return (
@@ -108,12 +107,15 @@ export default function ADSRController({
             size={size}
             baseColor={waveBaseColor}
             diskColor={rollerColor}
+            // fully controlled: we drive the normalized value and receive normalized back
             minValue={0}
             maxValue={1}
-            friction={0.5}     // smoother; 0.94 retains some spin, avoids jittery spam
-            sensitivity={0.5}   // responsive but not crazy
-            onValueChange={(t) => {
-              const v = lerp(range[0], range[1], t)  // t assumed 0..1 from Roller
+            value={to01(value, range)}
+            hardStops
+            friction={0.9}
+            sensitivity={0.8}
+            onValueChange={(t01) => {
+              const v = from01(t01, range)
               if (key === 'A') emitIfChanged({ attack: v })
               if (key === 'D') emitIfChanged({ decay: v })
               if (key === 'S') emitIfChanged({ sustain: v })
@@ -139,13 +141,15 @@ export default function ADSRController({
           dialColor={dialColor}
           minAngle={-Math.PI * 0.66}
           maxAngle={ Math.PI * 0.66}
-          initialAngle={0}
           minValue={0}
           maxValue={1}
-          sensitivity={0.5}
-          friction={0.5}
-          onValueChange={(t) => {
-            const v = lerp(DUR[0], DUR[1], t) // t assumed 0..1 from Dial
+          // fully controlled:
+          value={to01(duration, DUR)}
+          hardStops
+          friction={0.92}
+          sensitivity={0.6}
+          onValueChange={(t01) => {
+            const v = from01(t01, DUR)
             emitIfChanged({ duration: v })
           }}
         />

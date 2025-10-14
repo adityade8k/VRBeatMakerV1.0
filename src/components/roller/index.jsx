@@ -3,30 +3,38 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
 export default function Roller({
+  // Transform
   position = [0, 1, -0.6],
   rotation = [0, 0, 0],
   scale    = [1, 1, 1],
 
+  // Base
   size = [0.1, 0.1],
   baseColor = '#6987f5',
 
+  // Disk
   diskThickness = 0.035,
   diskSegments  = 8,
   diskColor     = '#fc45c8',
 
+  // Value space (we emit/accept normalized but keep an internal [min,max])
   minValue = 0,
   maxValue = 1,
+
+  // Controlled normalized value (0..1). If undefined, behaves uncontrolled.
+  value,
+
+  // Behavior
+  hardStops = true,
   friction = 0.92,
   sensitivity = 1.0,
   onValueChange = () => {},
-
-  // NEW: prevent rotation/value from exceeding bounds (and ignore outward pushes)
-  hardStops = true,
 }) {
   const groupRef = useRef()
   const baseRef  = useRef()
   const diskRef  = useRef()
 
+  // Geometries
   const baseGeo = useMemo(() => new THREE.PlaneGeometry(size[0], size[1]), [size])
   const diskRadius = useMemo(() => Math.min(size[0], size[1]) * 0.45, [size])
   const diskGeo = useMemo(
@@ -34,10 +42,10 @@ export default function Roller({
     [diskRadius, diskThickness, diskSegments]
   )
 
+  // State
   const dragging = useRef(false)
   const lastLocalZ = useRef(0)
   const spinVel = useRef(0)          // angular velocity
-  const valueRef = useRef((minValue + maxValue) / 2) // current value
   const lastSent = useRef(NaN)
 
   const tmpV3 = useMemo(() => new THREE.Vector3(), [])
@@ -45,13 +53,30 @@ export default function Roller({
   const radiusSafe = Math.max(diskRadius, 1e-4)
   const span = Math.max(1e-6, maxValue - minValue)
 
-  // Map value → visual angle (keep it bounded even if hardStops)
+  // Internal value in [minValue,maxValue]
+  const valueRef = useRef((minValue + maxValue) / 2)
+  const externalSet = useRef(false) // guard: don't re-emit when syncing from props
+
+  // Sync from controlled `value` (0..1)
+  useEffect(() => {
+    if (value == null || !Number.isFinite(value)) return
+    const v = minValue + Math.min(1, Math.max(0, value)) * span
+    valueRef.current = v
+    externalSet.current = true
+    if (hardStops && diskRef.current) {
+      const t = (v - minValue) / span
+      const target = THREE.MathUtils.lerp(-Math.PI * 0.9, Math.PI * 0.9, t)
+      diskRef.current.rotation.x = target
+    }
+  }, [value, minValue, span, hardStops])
+
+  // Map value → bounded angle
   const valueToAngle = (v) => {
-    // Map [min,max] → [-PI * 0.9, +PI * 0.9] (about 324° total range)
     const t = (v - minValue) / span
     return THREE.MathUtils.lerp(-Math.PI * 0.9, Math.PI * 0.9, t)
   }
 
+  // Pointer helpers
   const toLocalZ = (worldPoint) => {
     tmpV3.copy(worldPoint)
     groupRef.current?.worldToLocal(tmpV3)
@@ -63,8 +88,7 @@ export default function Roller({
     e.target.setPointerCapture?.(e.pointerId)
     dragging.current = true
     lastLocalZ.current = toLocalZ(e.point)
-    // soften velocity to stabilize grab
-    spinVel.current *= 0.4
+    spinVel.current *= 0.4 // stabilize grab
   }
 
   const onUp = (e) => {
@@ -84,12 +108,10 @@ export default function Roller({
     let dTheta = (dz / radiusSafe) * sensitivity
 
     if (hardStops) {
-      // If we are at min and pushing downwards (reduce value), ignore.
       const atMin = Math.abs(valueRef.current - minValue) < 1e-6
       const atMax = Math.abs(valueRef.current - maxValue) < 1e-6
       const outwardNeg = dTheta < 0 // decreases value
       const outwardPos = dTheta > 0 // increases value
-
       if ((atMin && outwardNeg) || (atMax && outwardPos)) {
         dTheta = 0
       }
@@ -102,11 +124,10 @@ export default function Roller({
     const disk = diskRef.current
     if (!disk) return
 
-    // Predict next value from velocity
-    let nextValue = valueRef.current + spinVel.current * 0.15 * span // scale vel to value space
+    // Integrate to value space
+    let nextValue = valueRef.current + spinVel.current * 0.15 * span
 
     if (hardStops) {
-      // Clamp value and kill outward velocity at bounds
       if (nextValue <= minValue) {
         nextValue = minValue
         if (spinVel.current < 0) spinVel.current = 0
@@ -120,32 +141,33 @@ export default function Roller({
 
     valueRef.current = nextValue
 
-    // Visual rotation:
+    // Visuals
     if (hardStops) {
-      // derive angle from value so it cannot exceed bounds visually
       const target = valueToAngle(valueRef.current)
-      // quick, smooth follow
       const k = 0.25
       disk.rotation.x = THREE.MathUtils.lerp(disk.rotation.x, target, k)
     } else {
-      // free-spinning visualization
       disk.rotation.x += spinVel.current
     }
 
-    // emit only on meaningful change
+    // Emit normalized only when meaningfully changed
     const EPS = 1e-4
     if (Math.abs(valueRef.current - lastSent.current) > EPS) {
       lastSent.current = valueRef.current
-      onValueChange((valueRef.current - minValue) / span) // normalized 0..1
+      if (externalSet.current) {
+        externalSet.current = false
+      } else {
+        onValueChange((valueRef.current - minValue) / span) // 0..1
+      }
     }
 
-    // friction
+    // Friction
     spinVel.current *= friction
     if (Math.abs(spinVel.current) < 1e-5) spinVel.current = 0
   })
 
   useEffect(() => {
-    // faces vertical
+    // cylinder axis → X so faces are vertical
     if (diskRef.current) {
       diskRef.current.rotation.z = Math.PI / 2
     }
