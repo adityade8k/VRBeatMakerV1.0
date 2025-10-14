@@ -1,128 +1,174 @@
-// controls/ADSRController.jsx
-import React, { useMemo } from 'react'
-import Roller from '../../components/roller'
-import Dial from '../../components/dial'
+// packages/ADSRController.jsx
+import { useMemo, useCallback } from 'react'
+import Roller from '../../components/roller'   // <-- adjust import paths if different
+import Dial from "../../components/dial"     // <-- adjust import paths if different
 
+/**
+ * ADSRController
+ * - 4 Rollers: Attack, Decay, Sustain, Release (normalized 0..1 with per-param ranges)
+ * - 1 Dial   : Duration (normalized 0..1 with its own range)
+ *
+ * Props:
+ *   position=[0,0,0], rotation, scale
+ *   gridSpacingX=0.16, gridSpacingZ=0.12, size=[0.085,0.085]
+ *   attack, decay, sustain, release, duration  (controlled values)
+ *   A_RANGE=[0.005, 2.0], D_RANGE=[0.01, 2.0], S_RANGE=[0,1], R_RANGE=[0.01, 3.0], DUR_RANGE=[0.05, 4.0]
+ *   colors & styling for rollers and dial
+ *   onChange: (patch) => void   // patch like { attack: 0.2 } in real units
+ */
 export default function ADSRController({
-  position = [0, 1, -0.9],
+  // Transform
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
+  scale    = [1, 1, 1],
+
+  // Grid layout
   gridSpacingX = 0.16,
   gridSpacingZ = 0.12,
-  size = [0.09, 0.09],
-  waveBaseColor = '#324966',
-  rollerColor = '#fc45c8',
-  dialBaseColor = '#324966',
-  dialColor = '#f08c00',
 
-  // controlled values (parent must update these when onChange fires)
+  // Control size/colors (forwarded to Roller/Dial)
+  size = [0.085, 0.085],
+
+  waveBaseColor = '#324966',
+  rollerColor   = '#fc45c8',
+  dialBaseColor = '#324966',
+  dialColor     = '#f08c00',
+
+  // Controlled values (real units)
   attack = 0.02,
   decay = 0.12,
-  sustain = 0.8,
+  sustain = 0.8,  // 0..1
   release = 0.2,
   duration = 0.5,
 
-  // ranges
+  // Ranges (real units)
   A_RANGE = [0.005, 2.0],
   D_RANGE = [0.01,  2.0],
   S_RANGE = [0.0,   1.0],
-  R_RANGE = [0.02,  3.0],
-  DUR_RANGE = [0.05, 2.5],
+  R_RANGE = [0.01,  3.0],
+  DUR_RANGE = [0.05, 4.0],
 
+  // Behavior
+  hardStops = true,
+  friction = 0.92,
+  sensitivity = 1.0,
+
+  // Unified patch emitter
   onChange = () => {},
 }) {
-  const clamp01 = (t) => (Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : 0)
-  const to01    = (v, [a, b]) => clamp01((v - a) / Math.max(1e-6, b - a))
-  const from01  = (t, [a, b]) => a + clamp01(t) * (b - a)
+  // Helpers
+  const clamp = (x, a, b) => Math.min(b, Math.max(a, x))
+  const norm = useCallback((v, [lo, hi]) => {
+    const span = Math.max(1e-9, hi - lo)
+    return clamp((v - lo) / span, 0, 1)
+  }, [])
+  const denorm = useCallback((t, [lo, hi]) => {
+    const tt = clamp(t, 0, 1)
+    return lo + tt * (hi - lo)
+  }, [])
+  const round3 = (x) => Math.round(x * 1000) / 1000
 
-  const ensureRange = (r) => (!r || r[0] === r[1]) ? [0, 1] : r
-  const [A, D, S, R, DUR] = useMemo(
-    () => [ensureRange(A_RANGE), ensureRange(D_RANGE), ensureRange(S_RANGE), ensureRange(R_RANGE), ensureRange(DUR_RANGE)],
-    [A_RANGE, D_RANGE, S_RANGE, R_RANGE, DUR_RANGE]
-  )
+  // Controlled normalized values for each control
+  const nA   = useMemo(() => norm(attack,   A_RANGE),   [attack, A_RANGE, norm])
+  const nD   = useMemo(() => norm(decay,    D_RANGE),   [decay,  D_RANGE, norm])
+  const nS   = useMemo(() => norm(sustain,  S_RANGE),   [sustain,S_RANGE, norm])
+  const nR   = useMemo(() => norm(release,  R_RANGE),   [release,R_RANGE, norm])
+  const nDur = useMemo(() => norm(duration, DUR_RANGE), [duration, DUR_RANGE, norm])
 
-  const halfX   = Number.isFinite(gridSpacingX) ? gridSpacingX * 0.5 : 0.08
-  const topZ    = 0
-  const bottomZ = Number.isFinite(gridSpacingZ) ? -gridSpacingZ : -0.12
-  const dialZ   = bottomZ - (Math.abs(gridSpacingZ) * 0.9)
+  // Emitters (convert 0..1 back to real units; send only changed field)
+  const onA  = useCallback((t) => onChange({ attack:  round3(denorm(t, A_RANGE)) }),  [onChange, A_RANGE, denorm])
+  const onD  = useCallback((t) => onChange({ decay:   round3(denorm(t, D_RANGE)) }), [onChange, D_RANGE, denorm])
+  const onS  = useCallback((t) => onChange({ sustain: round3(denorm(t, S_RANGE)) }), [onChange, S_RANGE, denorm])
+  const onR  = useCallback((t) => onChange({ release: round3(denorm(t, R_RANGE)) }), [onChange, R_RANGE, denorm])
+  const onDu = useCallback((t) => onChange({ duration:round3(denorm(t, DUR_RANGE))}),[onChange, DUR_RANGE, denorm])
 
-  // Pass controlled value (0..1) + emit real units via onChange
-  const bindRoller = (range, keyName, currentValue) => ({
-    minValue: 0,
-    maxValue: 1,
-    value: to01(currentValue, range),
-    hardStops: true,
-    friction: 0.9,
-    sensitivity: 0.8,
-    onChange: (t01) => onChange({ [keyName]: from01(t01, range) }),
-  })
-
-  const bindDial = (range, currentValue) => ({
-    minAngle: -Math.PI * 0.66,
-    maxAngle:  Math.PI * 0.66,
-    minValue: 0,
-    maxValue: 1,
-    value: to01(currentValue, range),
-    hardStops: true,
-    friction: 0.92,
-    sensitivity: 0.6,
-    onChange: (t01) => onChange({ duration: from01(t01, range) }),
-  })
+  // Layout:
+  //  A  D
+  //  S  R     (dial centered to the right)
+  const A_pos   = [ -gridSpacingX * 0.5, 0,  0                         ]
+  const D_pos   = [  gridSpacingX * 0.5, 0,  0                         ]
+  const S_pos   = [ -gridSpacingX * 0.5, 0, -gridSpacingZ              ]
+  const R_pos   = [  gridSpacingX * 0.5, 0, -gridSpacingZ              ]
+  const DialPos = [  gridSpacingX * 1.4, 0, -gridSpacingZ * 0.5        ]
 
   return (
-    <group position={position}>
+    <group position={position} rotation={rotation} scale={scale}>
       {/* Attack */}
-      <group position={[-halfX, 0, topZ]}>
-        <Roller
-          position={[0, 0, 0]}
-          size={size}
-          baseColor={waveBaseColor}
-          diskColor={rollerColor}
-          {...bindRoller(A, 'attack', attack)}
-        />
-      </group>
+      <Roller
+        position={A_pos}
+        size={size}
+        baseColor={waveBaseColor}
+        diskColor={rollerColor}
+        minValue={A_RANGE[0]}
+        maxValue={A_RANGE[1]}
+        value={nA}
+        hardStops={hardStops}
+        friction={friction}
+        sensitivity={sensitivity}
+        onChange={onA}
+      />
 
       {/* Decay */}
-      <group position={[halfX, 0, topZ]}>
-        <Roller
-          position={[0, 0, 0]}
-          size={size}
-          baseColor={waveBaseColor}
-          diskColor={rollerColor}
-          {...bindRoller(D, 'decay', decay)}
-        />
-      </group>
+      <Roller
+        position={D_pos}
+        size={size}
+        baseColor={waveBaseColor}
+        diskColor={rollerColor}
+        minValue={D_RANGE[0]}
+        maxValue={D_RANGE[1]}
+        value={nD}
+        hardStops={hardStops}
+        friction={friction}
+        sensitivity={sensitivity}
+        onChange={onD}
+      />
 
       {/* Sustain */}
-      <group position={[-halfX, 0, bottomZ]}>
-        <Roller
-          position={[0, 0, 0]}
-          size={size}
-          baseColor={waveBaseColor}
-          diskColor={rollerColor}
-          {...bindRoller(S, 'sustain', sustain)}
-        />
-      </group>
+      <Roller
+        position={S_pos}
+        size={size}
+        baseColor={waveBaseColor}
+        diskColor={rollerColor}
+        minValue={S_RANGE[0]}
+        maxValue={S_RANGE[1]}
+        value={nS}
+        hardStops={hardStops}
+        friction={friction}
+        sensitivity={sensitivity}
+        onChange={onS}
+      />
 
       {/* Release */}
-      <group position={[halfX, 0, bottomZ]}>
-        <Roller
-          position={[0, 0, 0]}
-          size={size}
-          baseColor={waveBaseColor}
-          diskColor={rollerColor}
-          {...bindRoller(R, 'release', release)}
-        />
-      </group>
+      <Roller
+        position={R_pos}
+        size={size}
+        baseColor={waveBaseColor}
+        diskColor={rollerColor}
+        minValue={R_RANGE[0]}
+        maxValue={R_RANGE[1]}
+        value={nR}
+        hardStops={hardStops}
+        friction={friction}
+        sensitivity={sensitivity}
+        onChange={onR}
+      />
 
-      {/* Duration dial */}
-      <group position={[0, 0, dialZ]}>
-        <Dial
-          position={[0, 0, 0]}
-          size={[size[0], size[1]]}
-          baseColor={dialBaseColor}
-          dialColor={dialColor}
-          {...bindDial(DUR, duration)}
-        />
-      </group>
+      {/* Duration Dial */}
+      <Dial
+        position={DialPos}
+        size={size}
+        baseColor={dialBaseColor}
+        dialColor={dialColor}
+        minAngle={-Math.PI * 0.75}
+        maxAngle={ Math.PI * 0.75}
+        minValue={DUR_RANGE[0]}
+        maxValue={DUR_RANGE[1]}
+        value={nDur}
+        hardStops
+        friction={0.92}
+        sensitivity={0.6}
+        onChange={onDu}
+      />
     </group>
   )
 }

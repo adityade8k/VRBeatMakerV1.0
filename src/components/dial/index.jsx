@@ -1,3 +1,4 @@
+
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -53,7 +54,7 @@ export default function Dial({
   const dragging = useRef(false)
   const lastPointerAngle = useRef(0)
   const spinVel = useRef(0)
-  const lastSent = useRef(NaN)
+  const lastSent = useRef(NaN)      // store last emitted t01
   const externalSet = useRef(false) // prevent echo when syncing from props
 
   // Helpers
@@ -65,32 +66,32 @@ export default function Dial({
   const setAngle = (a) => { if (dialRef.current) dialRef.current.rotation.y = a }
 
   const valueToAngle = (t01) => minAngle + angleSpan * Math.min(1, Math.max(0, t01))
-  const angleToT01   = (a)   => (a - minAngle) / angleSpan
+  const angleToT01   = (a)   => clamp((a - minAngle) / angleSpan, 0, 1)
 
-  // Sync from controlled value
+  // ⬇️ Seed lastSent on mount so first delta logs correctly (no initial log)
+  useEffect(() => {
+    lastSent.current = angleToT01(getAngle())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Sync from controlled value — log only if it actually changes
   useEffect(() => {
     if (value == null || !Number.isFinite(value)) return
     const a = valueToAngle(value)
     externalSet.current = true
     setAngle(a)
+
+    const t01 = value
+    const EPS = 1e-4
+    if (!Number.isFinite(lastSent.current) || Math.abs(t01 - lastSent.current) > EPS) {
+      lastSent.current = t01
+    }
   }, [value, minAngle, angleSpan])
 
   const getPointerAngleLocal = (worldPoint) => {
     tmp.copy(worldPoint)
     groupRef.current?.worldToLocal(tmp)
     return Math.atan2(tmp.x, tmp.z)
-  }
-
-  const emitNormalizedIfChanged = (a) => {
-    const t01 = angleToT01(a)
-    if (Math.abs(t01 - lastSent.current) > 1e-4) {
-      lastSent.current = t01
-      if (externalSet.current) {
-        externalSet.current = false
-      } else {
-        onChange?.(t01) // normalized 0..1
-      }
-    }
   }
 
   // Pointer events
@@ -149,18 +150,31 @@ export default function Dial({
     }
 
     setAngle(a)
-    emitNormalizedIfChanged(a)
+
+    // Emit + LOG only when the normalized value actually changed (user-driven)
+    const t01 = angleToT01(a)
+    const EPS = 1e-4
+    if (!Number.isFinite(lastSent.current) || Math.abs(t01 - lastSent.current) > EPS) {
+      lastSent.current = t01
+      if (externalSet.current) {
+        // external change already logged in the effect
+        externalSet.current = false
+      } else {
+        onChange?.(t01) // normalized 0..1
+      }
+    }
 
     // Friction
     spinVel.current *= friction
     if (Math.abs(spinVel.current) < 1e-5) spinVel.current = 0
   })
 
-  // Init angle
+  // Init angle (no log here; just set a starting position)
   useEffect(() => {
     const a0 = clamp(initialAngle, minAngle, maxAngle)
     setAngle(a0)
-    emitNormalizedIfChanged(a0)
+    // Update seed too (covers cases when initialAngle differs from default)
+    lastSent.current = angleToT01(a0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialAngle, minAngle, maxAngle])
 

@@ -59,6 +59,11 @@ export default function Roller({
   const valueRef = useRef((minValue + maxValue) / 2)
   const externalSet = useRef(false) // guard: don't re-emit when syncing from props
 
+  // ⬇️ Option A: seed lastSent on mount so first delta logs correctly
+  useEffect(() => {
+    lastSent.current = valueRef.current
+  }, [])
+
   // Sync from controlled `value` (0..1)
   useEffect(() => {
     if (value == null || !Number.isFinite(value)) return
@@ -70,6 +75,13 @@ export default function Roller({
       const target = THREE.MathUtils.lerp(-Math.PI * 0.9, Math.PI * 0.9, t)
       diskRef.current.rotation.x = target
     }
+    const EPS = 1e-4
+    if (Math.abs(v - lastSent.current) > EPS) {
+      lastSent.current = v
+      // LOG (external change)
+  
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, minValue, span, hardStops])
 
   // Map value → bounded angle
@@ -152,14 +164,17 @@ export default function Roller({
       disk.rotation.x += spinVel.current
     }
 
-    // Emit normalized only when meaningfully changed
+    // Emit + LOG only when the value actually changed (user-driven)
     const EPS = 1e-4
     if (Math.abs(valueRef.current - lastSent.current) > EPS) {
       lastSent.current = valueRef.current
+      const t01 = (valueRef.current - minValue) / span
       if (externalSet.current) {
+        // external change already logged in the effect
         externalSet.current = false
       } else {
-        onChange?.((valueRef.current - minValue) / span) // 0..1
+        
+        onChange?.(t01)
       }
     }
 
