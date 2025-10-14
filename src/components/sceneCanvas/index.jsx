@@ -30,7 +30,7 @@ export default function SceneCanvas({ store }) {
 
         {/* Waveform Selector */}
         <WaveTypeSelector
-          position={[0, 0.92, -0.35]}
+          position={[0.2, 0.9, -0.35]}
           spacing={0.07}
           size={[0.055, 0.055]}
           buttonScale={0.6}
@@ -40,7 +40,7 @@ export default function SceneCanvas({ store }) {
 
         {/* ADSR + Duration Controller */}
         <ADSRController
-          position={[0, 0.78, -0.35]}
+          position={[-0.2, 0.9, -0.35]}
           gridSpacingX={0.16}         // NOTE: prop is gridSpacingX in the controller
           gridSpacingZ={0.12}
           size={[0.085, 0.085]}
