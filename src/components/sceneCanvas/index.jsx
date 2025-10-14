@@ -1,5 +1,5 @@
 // SceneCanvas.jsx
-import { useState } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { XR } from '@react-three/xr'
 import WaveTypeSelector from '../../packages/WaveTypeSelector'
@@ -16,8 +16,26 @@ export default function SceneCanvas({ store }) {
     duration: 0.5,  // seconds
   })
 
-  // Updaters
-  const setWaveform = (wave) => setSynth((s) => ({ ...s, waveform: wave }))
+  // Stable handlers so children don't re-mount during drags
+  const setWaveform = useCallback(
+    (wave) => setSynth((s) => ({ ...s, waveform: wave })),
+    []
+  )
+
+  const handleADSRChange = useCallback(
+    (patch) => setSynth((s) => ({ ...s, ...patch })),
+    []
+  )
+
+  // Handy memo if you want to feed a synth hook/node graph
+  const synthParams = useMemo(() => ({
+    type: synth.waveform,
+    attack: synth.attack,
+    decay: synth.decay,
+    sustain: synth.sustain,
+    release: synth.release,
+    duration: synth.duration,
+  }), [synth])
 
   return (
     <Canvas dpr={[1, 2]} camera={{ position: [0, 1.2, 2.2], fov: 60 }}>
@@ -40,7 +58,7 @@ export default function SceneCanvas({ store }) {
         {/* ADSR + Duration Controller */}
         <ADSRController
           position={[-0.2, 0.9, -0.35]}
-          gridSpacingX={0.16}         // NOTE: prop is gridSpacingX in the controller
+          gridSpacingX={0.16}
           gridSpacingZ={0.12}
           size={[0.085, 0.085]}
           attack={synth.attack}
@@ -48,7 +66,7 @@ export default function SceneCanvas({ store }) {
           sustain={synth.sustain}
           release={synth.release}
           duration={synth.duration}
-          onChange={(patch) => setSynth((s) => ({ ...s, ...patch }))}     // receives {attack, decay, sustain, release, duration}
+          onChange={handleADSRChange}   // receives {attack|decay|sustain|release|duration}
         />
       </XR>
     </Canvas>
