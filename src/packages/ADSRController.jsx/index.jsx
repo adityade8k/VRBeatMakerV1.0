@@ -1,4 +1,3 @@
-
 // controls/ADSRController.jsx
 import React, { useMemo } from 'react'
 import Roller from '../../components/roller'
@@ -45,7 +44,7 @@ export default function ADSRController({
   const bottomZ = Number.isFinite(gridSpacingZ) ? -gridSpacingZ : -0.12
   const dialZ   = bottomZ - (Math.abs(gridSpacingZ) * 0.9)
 
-  // Common prop binders — pass a controlled value (0..1) + callbacks that emit real units
+  // Pass controlled value (0..1) + emit real units via onChange
   const bindRoller = (range, keyName, currentValue) => ({
     minValue: 0,
     maxValue: 1,
@@ -53,7 +52,7 @@ export default function ADSRController({
     hardStops: true,
     friction: 0.9,
     sensitivity: 0.8,
-    onValueChange: (t01) => onChange({ [keyName]: from01(t01, range) }),
+    onChange: (t01) => onChange({ [keyName]: from01(t01, range) }),
   })
 
   const bindDial = (range, currentValue) => ({
@@ -65,7 +64,7 @@ export default function ADSRController({
     hardStops: true,
     friction: 0.92,
     sensitivity: 0.6,
-    onValueChange: (t01) => onChange({ duration: from01(t01, range) }),
+    onChange: (t01) => onChange({ duration: from01(t01, range) }),
   })
 
   return (
