@@ -35,7 +35,7 @@ export default function Dial({
   onValueChange = () => {},
 
   // New: control feel
-  sensitivity = 1.0,          // pointer-to-angle multiplier
+  sensitivity = 0.5,          // pointer-to-angle multiplier
   friction    = 0.1,         // 0..1 (higher = spins longer)
 }) {
   const groupRef = useRef()

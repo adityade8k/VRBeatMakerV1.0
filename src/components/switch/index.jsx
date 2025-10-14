@@ -38,7 +38,7 @@ export default function ToggleSwitch({
   // Feel
   tiltOn  =  +0.6,           // ~34°
   tiltOff =  -0.6,           // ~-34°
-  sensitivity = 1.2,         // angle per unit Z (local) while dragging
+  sensitivity = 5,         // angle per unit Z (local) while dragging
   speed = 12,                // smoothing lerp speed (higher = snappier)
 
   // State
