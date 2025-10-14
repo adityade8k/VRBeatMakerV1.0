@@ -86,10 +86,6 @@ export default function SceneCanvas({ store }) {
 
         <Roller
           position={[-0.25, 0.85, -0.35]}
-          size={[0.18, 0.12]}
-          diskThickness={0.04}
-          friction={0.9}
-          sensitivity={1.2}
           minValue={-1}
           maxValue={1}
           onValueChange={(v) => setRollerValue(v)}
@@ -97,10 +93,6 @@ export default function SceneCanvas({ store }) {
 
         <Dial
           position={[0, 0.85, -0.35]}
-          size={[0.18, 0.12]}
-          dialThickness={0.022}
-          minAngle={-Math.PI * 0.7}
-          maxAngle={ Math.PI * 0.7}
           initialAngle={0}
           minValue={-1}
           maxValue={1}
@@ -110,14 +102,6 @@ export default function SceneCanvas({ store }) {
         {/* Toggle switch → background (black/white) */}
         <ToggleSwitch
           position={[0.25, 0.85, -0.35]}
-          size={[0.16, 0.12]}
-          stemHeight={0.09}
-          stemRadius={0.006}
-          knobRadius={0.02}
-          tiltOn={+0.6}
-          tiltOff={-0.6}
-          sensitivity={1.3}
-          speed={14}
           onToggle={(on) => setBgWhite(on)}
         />
       </XR>

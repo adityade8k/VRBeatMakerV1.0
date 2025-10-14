@@ -25,15 +25,15 @@ export default function ToggleSwitch({
   scale    = [1, 1, 1],
 
   // Base
-  size = [0.16, 0.12],
+  size = [0.1, 0.1],
   baseColor = '#6987f5',
 
   // Stem + knob
   stemHeight = 0.08,
   stemRadius = 0.006,
   knobRadius = 0.018,
-  stemColor  = '#222',
-  knobColor  = '#f5f5f5',
+  stemColor  = '#808080',
+  knobColor  = '#9c31ee',
 
   // Feel
   tiltOn  =  +0.6,           // ~34°
