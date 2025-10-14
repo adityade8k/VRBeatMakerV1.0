@@ -6,16 +6,19 @@ import WaveTypeSelector from '../../packages/WaveTypeSelector'
 import ADSRController from '../../packages/ADSRController.jsx'
 
 export default function SceneCanvas({ store }) {
-  const [waveform, setWaveform] = useState('sine')
-
-  // NEW: ADSR + Note Duration state (seconds)
-  const [adsr, setAdsr] = useState({
+  // One consolidated state object for all synth params
+  const [synth, setSynth] = useState({
+    waveform: 'sine',
     attack: 0.02,
     decay: 0.12,
     sustain: 0.8,   // 0..1
     release: 0.2,
+    duration: 0.5,  // seconds
   })
-  const [noteDuration, setNoteDuration] = useState(0.5)
+
+  // Updaters
+  const setWaveform = (wave) => setSynth((s) => ({ ...s, waveform: wave }))
+  const patchSynth  = (patch) => setSynth((s) => ({ ...s, ...patch }))
 
   return (
     <Canvas dpr={[1, 2]} camera={{ position: [0, 1.2, 2.2], fov: 60 }}>
@@ -31,24 +34,22 @@ export default function SceneCanvas({ store }) {
           spacing={0.07}
           size={[0.055, 0.055]}
           buttonScale={0.6}
-          selected={waveform}
-          onChange={(w) => setWaveform(w)}
+          selected={synth.waveform}
+          onChange={setWaveform}
         />
 
         {/* ADSR + Duration Controller */}
         <ADSRController
           position={[0, 0.78, -0.35]}
-          spacingX={0.16}
+          gridSpacingX={0.16}         // NOTE: prop is gridSpacingX in the controller
+          gridSpacingZ={0.12}
           size={[0.085, 0.085]}
-          attack={adsr.attack}
-          decay={adsr.decay}
-          sustain={adsr.sustain}
-          release={adsr.release}
-          duration={noteDuration}
-          onChange={({ attack, decay, sustain, release, duration }) => {
-            setAdsr({ attack, decay, sustain, release })
-            setNoteDuration(duration)
-          }}
+          attack={synth.attack}
+          decay={synth.decay}
+          sustain={synth.sustain}
+          release={synth.release}
+          duration={synth.duration}
+          onChange={patchSynth}       // receives {attack, decay, sustain, release, duration}
         />
       </XR>
     </Canvas>
