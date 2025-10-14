@@ -6,7 +6,7 @@ import { Text, Billboard } from '@react-three/drei'
 import WaveTypeSelector from '../../packages/WaveTypeSelector'
 import ADSRController from '../../packages/ADSRController.jsx'
 
-function SynthValues3D({ synth, position = [0.55, 1.2, -0.55] }) {
+function SynthValues3D({ synth, position = [0, 8, -0.75] }) {
   const fmtSec = (s) => `${Number.isFinite(s) ? s.toFixed(2) : '0.00'}s`
   const fmtPct = (p) => `${Number.isFinite(p) ? Math.round(p * 100) : 0}%`
 
@@ -59,7 +59,7 @@ function SynthValues3D({ synth, position = [0.55, 1.2, -0.55] }) {
           anchorY="top"
           maxWidth={width}
           lineHeight={1.1}
-          font="https://fonts.gstatic.com/s/robotomono/v22/L0x7DF4xlVMF-BfR8bXMIjhGq3qSb9E.woff" // monospace feel (optional)
+       // monospace feel (optional)
         >
           {t}
         </Text>
@@ -118,7 +118,7 @@ export default function SceneCanvas({ store }) {
 
         {/* Waveform Selector */}
         <WaveTypeSelector
-          position={[0.2, 0.9, -0.35]}
+          position={[0.2, 0.85, -0.35]}
           spacing={0.07}
           size={[0.055, 0.055]}
           buttonScale={0.6}
@@ -128,7 +128,7 @@ export default function SceneCanvas({ store }) {
 
         {/* ADSR + Duration Controller (labels removed) */}
         <ADSRController
-          position={[-0.2, 0.9, -0.35]}
+          position={[-0.2, 0.85, -0.35]}
           gridSpacingX={0.16}
           gridSpacingZ={0.12}
           size={[0.085, 0.085]}
