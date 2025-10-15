@@ -7,7 +7,7 @@ import { useTonePad } from '../../hooks/useTonePad'
 
 /** Flat, non-billboard label: small plane + Text that faces forward */
 function InfoPlate({
-  position = [0,0,0],
+  position = [0, 0, 0],
   size = [0.16, 0.06],
   bg = '#0f172a',
   opacity = 0.8,
@@ -17,7 +17,7 @@ function InfoPlate({
 }) {
   const [w, h] = size
   return (
-    <group position={position} rotation ={[-Math.PI/2, 0, 0]} >
+    <group position={position} rotation={[-Math.PI / 2, 0, 0]} >
       <mesh renderOrder={0}>
         <planeGeometry args={[w, h]} />
         <meshBasicMaterial
@@ -58,17 +58,17 @@ export default function TonePad({
 
   // Layout (tuned to match your sketch)
   leftOrigin = [-0.34, 0.00, 0.0],     // dial column origin (relative to `position`)
-  padOrigin  = [ 0.08, -0.02, 0],   // pad grid origin
+  padOrigin = [0.08, -0.02, 0],   // pad grid origin
 
   reverbDialGapX = 0.13, // Mix <-> Room
-  dialRowGapY    = 0.17, // (reverb row) <-> (octave)
+  dialRowGapY = 0.17, // (reverb row) <-> (octave)
 
   padCols = 4, padRows = 2,
   padGapX = 0.14, padGapY = 0.14,
 
   // Label plates
   labelOffset = [0, 0, -0.08],
-  labelSize   = [0.1, 0.06],
+  labelSize = [0.1, 0.06],
 
   // Parent state
   synth,    // { waveform, attack, decay, sustain, release, duration, reverbMix, reverbRoomSize, octave, cleanupEps }
@@ -91,7 +91,7 @@ export default function TonePad({
     const baseOct = 4 + Math.round(octave) // -2..+2
     const baseMidiC = 12 * (baseOct + 1)
     const offsets = [0, 2, 4, 5, 7, 9, 11, 12]
-    const names   = ['C','D','E','F','G','A','B','C']
+    const names = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C']
     return offsets.map((off, i) => {
       const midi = baseMidiC + off
       const nOct = Math.floor(midi / 12) - 1
@@ -105,21 +105,21 @@ export default function TonePad({
   const octFromT = (t) => Math.round(t * 4 - 2)
 
   // Dial change handlers
-  const setMix  = useCallback((t01) => onChange?.({ reverbMix: +t01.toFixed(3) }), [onChange])
+  const setMix = useCallback((t01) => onChange?.({ reverbMix: +t01.toFixed(3) }), [onChange])
   const setRoom = useCallback((t01) => onChange?.({ reverbRoomSize: +t01.toFixed(3) }), [onChange])
-  const setOct  = useCallback((t01) => onChange?.({ octave: octFromT(t01) }), [onChange])
+  const setOct = useCallback((t01) => onChange?.({ octave: octFromT(t01) }), [onChange])
 
   const onPadPress = useCallback((midi) => triggerNote(midi, duration), [triggerNote, duration])
 
   // Dial positions (relative to leftOrigin)
-  const mixPos  = [leftOrigin[0] - reverbDialGapX * 0.5, leftOrigin[2], leftOrigin[1] + dialRowGapY * 0.5]
-  const roomPos = [leftOrigin[0] + reverbDialGapX * 0.5, leftOrigin[2], leftOrigin[1] + dialRowGapY * 0.5 ]
-  const octPos  = [leftOrigin[0],  leftOrigin[2],  leftOrigin[1] - dialRowGapY * 0.5, ]
+  const mixPos = [leftOrigin[0] - reverbDialGapX * 0.5, leftOrigin[2], leftOrigin[1] + dialRowGapY * 0.5]
+  const roomPos = [leftOrigin[0] + reverbDialGapX * 0.5, leftOrigin[2], leftOrigin[1] + dialRowGapY * 0.5]
+  const octPos = [leftOrigin[0], leftOrigin[2], leftOrigin[1] - dialRowGapY * 0.5,]
 
   // Label positions (small plane in front of each dial)
-  const mixLabelPos  = [mixPos[0]  + labelOffset[0], mixPos[1]  + labelOffset[1], mixPos[2]  + labelOffset[2]]
+  const mixLabelPos = [mixPos[0] + labelOffset[0], mixPos[1] + labelOffset[1], mixPos[2] + labelOffset[2]]
   const roomLabelPos = [roomPos[0] + labelOffset[0], roomPos[1] + labelOffset[1], roomPos[2] + labelOffset[2]]
-  const octLabelPos  = [octPos[0]  + labelOffset[0], octPos[1]  + labelOffset[1], octPos[2]  + labelOffset[2]]
+  const octLabelPos = [octPos[0] + labelOffset[0], octPos[1] + labelOffset[1], octPos[2] + labelOffset[2]]
 
   // Build 2×4 pad grid positions
   const pads = useMemo(() => {
@@ -143,13 +143,11 @@ export default function TonePad({
         size={size}
         baseColor={dialBaseColor}
         dialColor={dialColor}
-        value={clamp01(reverbMix)}
-        minAngle={-Math.PI * 0.75}
-        maxAngle={ Math.PI * 0.75}
-        onChange={setMix}
-        hardStops
-        sensitivity={0.5}
-        friction={0.5}
+        range={[0, 1]}
+        step={0.05}
+        stepAngle={Math.PI / 18}
+        value={reverbMix}
+        onChange={(v) => onChange?.({ reverbMix: +v.toFixed(2) })}
       />
       <InfoPlate position={mixLabelPos} size={labelSize} text={`Mix: ${pct(reverbMix)}`} />
 
@@ -158,13 +156,11 @@ export default function TonePad({
         size={size}
         baseColor={dialBaseColor}
         dialColor={dialColor}
-        value={clamp01(reverbRoomSize)}
-        minAngle={-Math.PI * 0.75}
-        maxAngle={ Math.PI * 0.75}
-        onChange={setRoom}
-        hardStops
-        sensitivity={0.5}
-        friction={0.5}
+        range={[0, 1]}
+        step={0.05}
+        stepAngle={Math.PI / 18}
+        value={reverbRoomSize}
+        onChange={(v) => onChange?.({ reverbRoomSize: +v.toFixed(2) })}
       />
       <InfoPlate position={roomLabelPos} size={labelSize} text={`Room: ${pct(reverbRoomSize)}`} />
 
@@ -174,13 +170,11 @@ export default function TonePad({
         size={size}
         baseColor={dialBaseColor}
         dialColor={dialColor}
-        value={tFromOct(octave)}
-        minAngle={-Math.PI * 0.75}
-        maxAngle={ Math.PI * 0.75}
-        onChange={setOct}
-        hardStops
-        sensitivity={0.5}
-        friction={0.5}
+        range={[-2, 2]}
+        step={1}
+        stepAngle={Math.PI / 12} // a little larger threshold for deliberate changes
+        value={Math.round(octave)}
+        onChange={(v) => onChange?.({ octave: Math.round(v) })}
       />
       <InfoPlate position={octLabelPos} size={labelSize} text={`Octave: ${Math.round(octave)}`} />
 
@@ -204,8 +198,8 @@ export default function TonePad({
               label={label}
               labelColor="#ffffff"
               onPressed={() => onPadPress(midi)}
-              onPressDown={() => {}}
-              onPressUp={() => {}}
+              onPressDown={() => { }}
+              onPressUp={() => { }}
             />
           )
         })}

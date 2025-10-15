@@ -124,82 +124,67 @@ export default function ADSRController({
 
   return (
     <group position={position} rotation={rotation} scale={scale}>
-      {/* Attack */}
+     // (inside your ADSRController return)
       <Roller
         position={A_pos}
         size={size}
         baseColor={waveBaseColor}
         diskColor={rollerColor}
-        minValue={A_RANGE[0]}
-        maxValue={A_RANGE[1]}
-        value={nA}
-        hardStops={hardStops}
-        friction={friction}
-        sensitivity={sensitivity}
-        onChange={onA}
+        range={A_RANGE}          // ← NEW
+        step={0.01}             // choose sensible steps
+        stepAngle={Math.PI / 18}
+        value={attack}           // ← domain units now
+        onChange={(v) => onChange({ attack: +v.toFixed(3) })}
       />
 
-      {/* Decay */}
       <Roller
         position={D_pos}
         size={size}
         baseColor={waveBaseColor}
         diskColor={rollerColor}
-        minValue={D_RANGE[0]}
-        maxValue={D_RANGE[1]}
-        value={nD}
-        hardStops={hardStops}
-        friction={friction}
-        sensitivity={sensitivity}
-        onChange={onD}
+        range={D_RANGE}
+        step={0.01}
+        stepAngle={Math.PI / 18}
+        value={decay}
+        onChange={(v) => onChange({ decay: +v.toFixed(3) })}
       />
 
-      {/* Sustain */}
       <Roller
         position={S_pos}
         size={size}
         baseColor={waveBaseColor}
         diskColor={rollerColor}
-        minValue={S_RANGE[0]}
-        maxValue={S_RANGE[1]}
-        value={nS}
-        hardStops={hardStops}
-        friction={friction}
-        sensitivity={sensitivity}
-        onChange={onS}
+        range={S_RANGE}
+        step={0.05}
+        stepAngle={Math.PI / 18}
+        value={sustain}
+        onChange={(v) => onChange({ sustain: +v.toFixed(3) })}
       />
 
-      {/* Release */}
       <Roller
         position={R_pos}
         size={size}
         baseColor={waveBaseColor}
         diskColor={rollerColor}
-        minValue={R_RANGE[0]}
-        maxValue={R_RANGE[1]}
-        value={nR}
-        hardStops={hardStops}
-        friction={friction}
-        sensitivity={sensitivity}
-        onChange={onR}
+        range={R_RANGE}
+        step={0.02}
+        stepAngle={Math.PI / 18}
+        value={release}
+        onChange={(v) => onChange({ release: +v.toFixed(3) })}
       />
 
-      {/* Duration Dial */}
       <Dial
         position={DialPos}
         size={size}
         baseColor={dialBaseColor}
         dialColor={dialColor}
-        minAngle={-Math.PI * 0.75}
-        maxAngle={Math.PI * 0.75}
-        minValue={DUR_RANGE[0]}
-        maxValue={DUR_RANGE[1]}
-        value={nDur}
-        hardStops
-        friction={0.5}
-        sensitivity={0.5}
-        onChange={onDu}
+        range={DUR_RANGE}        // ← NEW
+        step={0.05}
+        stepAngle={Math.PI / 18}
+        value={duration}
+        onChange={(v) => onChange({ duration: +v.toFixed(2) })}
       />
+
 
       {showInfoPanel && (
         <group position={panelOffset} rotation={[-Math.PI / 2, 0, 0]}>
