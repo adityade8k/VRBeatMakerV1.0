@@ -17,7 +17,7 @@ export default function ConsolePanel({
       
         {/* Waveform Selector (right side) */}
         <WaveTypeSelector
-          position={[-0.22, 0, 0.025]}
+          position={[-0.2, 0, 0.025]}
           spacing={0.07}
           size={[0.055, 0.055]}
           buttonScale={0.6}
@@ -28,7 +28,7 @@ export default function ConsolePanel({
         {/* ADSR Controller (left side) with built-in info panel */}
         <ADSRController
           position={[-0.05, 0.0, 0]}
-          gridSpacingX={0.16}
+          gridSpacingX={0.12}
           gridSpacingZ={0.12}
           size={[0.1, 0.1]}
           attack={synth.attack}
@@ -38,8 +38,8 @@ export default function ConsolePanel({
           duration={synth.duration}
           onChange={onADSRChange}
           showInfoPanel       // NEW: makes the controller render its own plane + text
-          infoPanelOffset={[0.06, 0, -0.3]} // tweak vertical offset above controls
-          infoPanelSize={[0.4, 0.2]}    // (width, height) of the plane
+          infoPanelOffset={[0.061, 0, -0.3]} // tweak vertical offset above controls
+          infoPanelSize={[0.34, 0.2]}    // (width, height) of the plane
         />
     </group>
   )

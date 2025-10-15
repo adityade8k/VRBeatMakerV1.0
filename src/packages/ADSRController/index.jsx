@@ -28,7 +28,7 @@ export default function ADSRController({
   // Transform
   position = [0, 0, 0],
   rotation = [0, 0, 0],
-  scale    = [1, 1, 1],
+  scale = [1, 1, 1],
 
   // Grid layout
   gridSpacingX = 0.16,
@@ -38,9 +38,9 @@ export default function ADSRController({
   size = [0.085, 0.085],
 
   waveBaseColor = '#324966',
-  rollerColor   = '#fc45c8',
+  rollerColor = '#fc45c8',
   dialBaseColor = '#324966',
-  dialColor     = '#f08c00',
+  dialColor = '#f08c00',
 
   // Controlled values (real units)
   attack = 0.02,
@@ -51,9 +51,9 @@ export default function ADSRController({
 
   // Ranges (real units)
   A_RANGE = [0.005, 2.0],
-  D_RANGE = [0.01,  2.0],
-  S_RANGE = [0.0,   1.0],
-  R_RANGE = [0.01,  3.0],
+  D_RANGE = [0.01, 2.0],
+  S_RANGE = [0.0, 1.0],
+  R_RANGE = [0.01, 3.0],
   DUR_RANGE = [0.05, 4.0],
 
   // Behavior
@@ -62,7 +62,7 @@ export default function ADSRController({
   sensitivity = 0.2,
 
   // Unified patch emitter
-  onChange = () => {},
+  onChange = () => { },
 
   // ───────── NEW: Info panel props ─────────
   showInfoPanel = true,
@@ -86,27 +86,27 @@ export default function ADSRController({
   const round3 = (x) => Math.round(x * 1000) / 1000
 
   // Controlled normalized values for each control
-  const nA   = useMemo(() => norm(attack,   A_RANGE),   [attack, A_RANGE, norm])
-  const nD   = useMemo(() => norm(decay,    D_RANGE),   [decay,  D_RANGE, norm])
-  const nS   = useMemo(() => norm(sustain,  S_RANGE),   [sustain,S_RANGE, norm])
-  const nR   = useMemo(() => norm(release,  R_RANGE),   [release,R_RANGE, norm])
+  const nA = useMemo(() => norm(attack, A_RANGE), [attack, A_RANGE, norm])
+  const nD = useMemo(() => norm(decay, D_RANGE), [decay, D_RANGE, norm])
+  const nS = useMemo(() => norm(sustain, S_RANGE), [sustain, S_RANGE, norm])
+  const nR = useMemo(() => norm(release, R_RANGE), [release, R_RANGE, norm])
   const nDur = useMemo(() => norm(duration, DUR_RANGE), [duration, DUR_RANGE, norm])
 
   // Emitters
-  const onA  = useCallback((t) => onChange({ attack:  round3(denorm(t, A_RANGE)) }),  [onChange, A_RANGE, denorm])
-  const onD  = useCallback((t) => onChange({ decay:   round3(denorm(t, D_RANGE)) }), [onChange, D_RANGE, denorm])
-  const onS  = useCallback((t) => onChange({ sustain: round3(denorm(t, S_RANGE)) }), [onChange, S_RANGE, denorm])
-  const onR  = useCallback((t) => onChange({ release: round3(denorm(t, R_RANGE)) }), [onChange, R_RANGE, denorm])
-  const onDu = useCallback((t) => onChange({ duration:round3(denorm(t, DUR_RANGE))}),[onChange, DUR_RANGE, denorm])
+  const onA = useCallback((t) => onChange({ attack: round3(denorm(t, A_RANGE)) }), [onChange, A_RANGE, denorm])
+  const onD = useCallback((t) => onChange({ decay: round3(denorm(t, D_RANGE)) }), [onChange, D_RANGE, denorm])
+  const onS = useCallback((t) => onChange({ sustain: round3(denorm(t, S_RANGE)) }), [onChange, S_RANGE, denorm])
+  const onR = useCallback((t) => onChange({ release: round3(denorm(t, R_RANGE)) }), [onChange, R_RANGE, denorm])
+  const onDu = useCallback((t) => onChange({ duration: round3(denorm(t, DUR_RANGE)) }), [onChange, DUR_RANGE, denorm])
 
   // Layout:
   //  A  D
   //  S  R     (dial centered to the right)
-  const A_pos   = [ -gridSpacingX * 0.5, 0,  0                         ]
-  const D_pos   = [  gridSpacingX * 0.5, 0,  0                         ]
-  const S_pos   = [ -gridSpacingX * 0.5, 0, -gridSpacingZ              ]
-  const R_pos   = [  gridSpacingX * 0.5, 0, -gridSpacingZ              ]
-  const DialPos = [  gridSpacingX * 1.4, 0, -gridSpacingZ * 0.5        ]
+  const A_pos = [-gridSpacingX * 0.5, 0, 0]
+  const D_pos = [gridSpacingX * 0.5, 0, 0]
+  const S_pos = [-gridSpacingX * 0.5, 0, -gridSpacingZ]
+  const R_pos = [gridSpacingX * 0.5, 0, -gridSpacingZ]
+  const DialPos = [gridSpacingX * 1.4, 0, -gridSpacingZ * 0.5]
 
   // ───────── NEW: Info panel content/position ─────────
   const fmtSec = (s) => `${Number.isFinite(s) ? s.toFixed(2) : '0.00'}s`
@@ -191,7 +191,7 @@ export default function ADSRController({
         baseColor={dialBaseColor}
         dialColor={dialColor}
         minAngle={-Math.PI * 0.75}
-        maxAngle={ Math.PI * 0.75}
+        maxAngle={Math.PI * 0.75}
         minValue={DUR_RANGE[0]}
         maxValue={DUR_RANGE[1]}
         value={nDur}
@@ -201,20 +201,26 @@ export default function ADSRController({
         onChange={onDu}
       />
 
-      {/* ───────── NEW: Info Panel (plane + outline + text) ───────── */}
       {showInfoPanel && (
-        <group position={panelOffset} rotation={[-Math.PI/2, 0, 0]}>
+        <group position={panelOffset} rotation={[-Math.PI / 2, 0, 0]}>
           {/* Background plane */}
-          <mesh>
+          <mesh renderOrder={0}>
             <planeGeometry args={[panelW, panelH]} />
-            <meshBasicMaterial color={infoPanelBg} transparent opacity={0.65} />
+            <meshBasicMaterial
+              color={infoPanelBg}
+              transparent
+              opacity={0.65}
+              depthWrite={false}   // <— prevents the panel from writing to the depth buffer
+            />
           </mesh>
 
           {/* Text lines */}
           {infoLines.map((t, i) => (
             <Text
               key={i}
-              position={[-panelW * 0.45, (panelH * 0.32) - i * lineH, 0.005]}
+              renderOrder={2}       // <— ensure it renders after the background
+              depthTest={false}     // <— ignore depth for crisp edges
+              position={[-panelW * 0.45, (panelH * 0.32) - i * lineH, 0.01]}  // <— more separation
               fontSize={infoFontSize}
               color={infoText}
               anchorX="left"
@@ -227,6 +233,7 @@ export default function ADSRController({
           ))}
         </group>
       )}
+
     </group>
   )
 }
