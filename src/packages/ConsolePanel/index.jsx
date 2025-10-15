@@ -1,20 +1,20 @@
 // src/packages/ConsolePanel.jsx
-import { forwardRef } from 'react'
 import WaveTypeSelector from '../WaveTypeSelector'
 import ADSRController from '../ADSRController'
 import TonePad from '../TonePad'
 
-const ConsolePanel = forwardRef(function ConsolePanel({
+export default function ConsolePanel({
   position = [0, 0.9, -0.35],
   rotation = [0, 0, 0],
   scale = 0.5,
   synth,
   onWaveChange,
   onADSRChange,
-  onSynthPatch,
-}, ref) {
+  onSynthPatch,        // NEW: pass-through setter for tonePad dial changes
+}) {
   return (
-    <group ref={ref} position={position} rotation={rotation} scale={[scale, scale, scale]}>
+    <group position={position} rotation={rotation} scale={[scale, scale, scale]}>
+      {/* Waveform Selector */}
       <WaveTypeSelector
         position={[-0.2, 0, 0.025]}
         spacing={0.07}
@@ -23,6 +23,8 @@ const ConsolePanel = forwardRef(function ConsolePanel({
         selected={synth.waveform}
         onChange={onWaveChange}
       />
+
+      {/* ADSR Controller */}
       <ADSRController
         position={[-0.05, 0.0, 0]}
         gridSpacingX={0.12}
@@ -38,9 +40,13 @@ const ConsolePanel = forwardRef(function ConsolePanel({
         infoPanelOffset={[0.061, 0, -0.3]}
         infoPanelSize={[0.34, 0.2]}
       />
-      <TonePad position={[0.68, 0, 0]} synth={synth} onChange={onSynthPatch} />
+
+      {/* TonePad cluster (right) */}
+      <TonePad
+        position={[0.68, 0, 0]}
+        synth={synth}
+        onChange={onSynthPatch}
+      />
     </group>
   )
-})
-
-export default ConsolePanel
+}
