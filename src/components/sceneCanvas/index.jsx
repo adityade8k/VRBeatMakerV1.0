@@ -43,8 +43,8 @@ export default function SceneCanvas({ store }) {
 
         {/* Single cluster */}
         <ConsolePanel
-          position={[0, 0.95, 1.5]}
-          // position = {[0, 0.85, -0.35]}
+          // position={[0, 0.95, 1.5]}
+          position = {[0, 0.85, -0.35]}
           synth={synth}
           onWaveChange={setWaveform}
           onADSRChange={handleADSRChange}
