@@ -1,4 +1,3 @@
-// src/packages/ConsolePanel.jsx
 import WaveTypeSelector from '../WaveTypeSelector'
 import ADSRController from '../ADSRController'
 import TonePad from '../TonePad'
@@ -12,8 +11,6 @@ export default function ConsolePanel({
   onWaveChange,
   onADSRChange,
   onSynthPatch,
-
-  // transport/recorder state + actions
   recorder,
 }) {
   const {
@@ -23,6 +20,7 @@ export default function ConsolePanel({
     recording, setRecording,
     playing, setPlaying,
     mutes, setMutes,
+    recDuration, setRecDuration,     // ← bring in
     onRecordedNote,
   } = recorder
 
@@ -53,6 +51,7 @@ export default function ConsolePanel({
         infoPanelSize={[0.34, 0.2]}
       />
 
+      {/* Playback + Visualizer live inside this module now */}
       <PlayBackRecorder
         position={[1.045, 0.0, -0.2]}
         synth={synth}
@@ -62,9 +61,10 @@ export default function ConsolePanel({
         recording={recording} setRecording={setRecording}
         playing={playing} setPlaying={setPlaying}
         mutes={mutes} setMutes={setMutes}
+        recDuration={recDuration} setRecDuration={setRecDuration}  // ← wired
       />
 
-      {/* Tone pads: will also notify recorder while recording */}
+      {/* TonePad (records into current slot when recording is ON) */}
       <TonePad
         position={[0.85, 0, -0.075]}
         synth={synth}
