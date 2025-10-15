@@ -2,35 +2,19 @@ import { useFrame } from '@react-three/fiber'
 import { useXR } from '@react-three/xr'
 import { useRef } from 'react'
 
-/**
- * XRPadTransformControls
- * - While buttons are held, applies continuous deltas to targetRef.current
- * - Mappings are lenient across Touch-like controllers (A/B/X/Y ≈ buttons[3|4])
- *
- * Right controller:
- *   A  → +X,  B  → -X
- *   Trigger → +Z,  Grip → +RotX (radians)
- *   Thumbstick click → Scale up
- *
- * Left controller:
- *   X  → +Y,  Y  → -Y
- *   Trigger → -Z,  Grip → -RotX
- *   Thumbstick click → Scale down
- */
 export default function XRPadTransformControls({
-  targetRef,                 // THREE.Group ref (ConsolePad)
-  movePerSec = 0.25,         // meters / second
-  rotPerSec  = Math.PI / 6,  // radians / second (≈30°/s)
-  scalePerSec = 0.5,         // units / second (uniform)
+  targetRef,
+  movePerSec = 0.25,
+  rotPerSec  = Math.PI / 6,
+  scalePerSec = 0.5,
   minScale = 0.25,
   maxScale = 2.5,
 }) {
-  const { controllers } = useXR()
+  const xr = useXR()
   const scaleCache = useRef(1)
 
-  // utility: tolerant button check across devices
   const pressed = (gp, ids) => {
-    if (!gp?.buttons) return false
+    if (!gp || !gp.buttons) return false
     for (const id of ids) {
       const b = gp.buttons[id]
       if (b && (b.pressed || b.value > 0.5)) return true
@@ -38,49 +22,57 @@ export default function XRPadTransformControls({
     return false
   }
 
-  // typical indices seen on Touch-like pads
   const idx = {
-    trigger: [0],           // select
-    grip:    [1],           // squeeze
-    stick:   [2],           // thumbstick click
-    primary: [3],           // A/X
-    secondary: [4],         // B/Y
+    trigger: [0],
+    grip:    [1],
+    stick:   [2],
+    primary: [3],
+    secondary: [4],
   }
 
   useFrame((_, dt) => {
     const t = targetRef?.current
     if (!t) return
 
-    // cache current scale (assumes uniform)
+    // No controllers yet? bail quietly.
+    const ctrls = Array.isArray(xr?.controllers) ? xr.controllers : []
+    if (ctrls.length === 0) return
+
+    // Find left/right safely
+    const left =
+      ctrls.find(c => c?.inputSource?.handedness === 'left') ?? null
+    const right =
+      ctrls.find(c => c?.inputSource?.handedness === 'right') ?? null
+
+    const gl = left?.inputSource?.gamepad ?? null
+    const gr = right?.inputSource?.gamepad ?? null
+
+    // If neither has a gamepad, nothing to do.
+    if (!gl && !gr) return
+
     const curScale = t.scale.x
     scaleCache.current = curScale
 
-    // find left/right controllers (by handedness)
-    const left  = controllers.find(c => c.inputSource?.handedness === 'left')
-    const right = controllers.find(c => c.inputSource?.handedness === 'right')
-    const gl = (left  && left.inputSource?.gamepad)  || null
-    const gr = (right && right.inputSource?.gamepad) || null
-
     // ---- POSITION X (right A/B)
-    if (pressed(gr, idx.primary))  t.position.x += movePerSec * dt   // A → +X
-    if (pressed(gr, idx.secondary)) t.position.x -= movePerSec * dt  // B → -X
+    if (pressed(gr, idx.primary))   t.position.x += movePerSec * dt
+    if (pressed(gr, idx.secondary)) t.position.x -= movePerSec * dt
 
     // ---- POSITION Y (left X/Y)
-    if (pressed(gl, idx.primary))   t.position.y += movePerSec * dt  // X → +Y
-    if (pressed(gl, idx.secondary)) t.position.y -= movePerSec * dt  // Y → -Y
+    if (pressed(gl, idx.primary))   t.position.y += movePerSec * dt
+    if (pressed(gl, idx.secondary)) t.position.y -= movePerSec * dt
 
     // ---- POSITION Z (triggers)
-    if (pressed(gr, idx.trigger))   t.position.z += movePerSec * dt  // right trigger → +Z (toward you)
-    if (pressed(gl, idx.trigger))   t.position.z -= movePerSec * dt  // left  trigger → -Z
+    if (pressed(gr, idx.trigger))   t.position.z += movePerSec * dt
+    if (pressed(gl, idx.trigger))   t.position.z -= movePerSec * dt
 
     // ---- ROTATION X (grips)
-    if (pressed(gr, idx.grip)) t.rotation.x += rotPerSec * dt        // right grip → +rotX
-    if (pressed(gl, idx.grip)) t.rotation.x -= rotPerSec * dt        // left  grip → -rotX
+    if (pressed(gr, idx.grip)) t.rotation.x += rotPerSec * dt
+    if (pressed(gl, idx.grip)) t.rotation.x -= rotPerSec * dt
 
     // ---- SCALE (thumbstick clicks)
     let nextScale = curScale
-    if (pressed(gr, idx.stick)) nextScale += scalePerSec * dt        // right stick click → scale up
-    if (pressed(gl, idx.stick)) nextScale -= scalePerSec * dt        // left  stick click → scale down
+    if (pressed(gr, idx.stick)) nextScale += scalePerSec * dt
+    if (pressed(gl, idx.stick)) nextScale -= scalePerSec * dt
     nextScale = Math.min(maxScale, Math.max(minScale, nextScale))
     if (nextScale !== curScale) t.scale.setScalar(nextScale)
   })
