@@ -1,7 +1,8 @@
 // packages/ADSRController.jsx
 import { useMemo, useCallback } from 'react'
-import Roller from '../../components/roller'   // <-- adjust import paths if different
-import Dial from "../../components/dial"     // <-- adjust import paths if different
+import { Text } from '@react-three/drei'         // ⬅️ NEW
+import Roller from '../../components/roller'     // adjust import paths if different
+import Dial from "../../components/dial"         // adjust import paths if different
 
 /**
  * ADSRController
@@ -15,6 +16,13 @@ import Dial from "../../components/dial"     // <-- adjust import paths if diffe
  *   A_RANGE=[0.005, 2.0], D_RANGE=[0.01, 2.0], S_RANGE=[0,1], R_RANGE=[0.01, 3.0], DUR_RANGE=[0.05, 4.0]
  *   colors & styling for rollers and dial
  *   onChange: (patch) => void   // patch like { attack: 0.2 } in real units
+ *
+ *   // NEW (Info Panel)
+ *   showInfoPanel=true
+ *   infoPanelOffset=[gridSpacingX*1.4, 0.18, 0]
+ *   infoPanelSize=[0.62, 0.2]
+ *   infoPanelBg="#0f172a", infoPanelBorder="#94a3b8", infoText="#cbd5e1"
+ *   infoFontSize=0.045
  */
 export default function ADSRController({
   // Transform
@@ -55,6 +63,15 @@ export default function ADSRController({
 
   // Unified patch emitter
   onChange = () => {},
+
+  // ───────── NEW: Info panel props ─────────
+  showInfoPanel = true,
+  infoPanelOffset, // default computed below
+  infoPanelSize = [0.3, 0.3],
+  infoPanelBg = '#0f172a',
+  infoPanelBorder = '#94a3b8',
+  infoText = '#cbd5e1',
+  infoFontSize = 0.025,
 }) {
   // Helpers
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x))
@@ -75,7 +92,7 @@ export default function ADSRController({
   const nR   = useMemo(() => norm(release,  R_RANGE),   [release,R_RANGE, norm])
   const nDur = useMemo(() => norm(duration, DUR_RANGE), [duration, DUR_RANGE, norm])
 
-  // Emitters (convert 0..1 back to real units; send only changed field)
+  // Emitters
   const onA  = useCallback((t) => onChange({ attack:  round3(denorm(t, A_RANGE)) }),  [onChange, A_RANGE, denorm])
   const onD  = useCallback((t) => onChange({ decay:   round3(denorm(t, D_RANGE)) }), [onChange, D_RANGE, denorm])
   const onS  = useCallback((t) => onChange({ sustain: round3(denorm(t, S_RANGE)) }), [onChange, S_RANGE, denorm])
@@ -90,6 +107,20 @@ export default function ADSRController({
   const S_pos   = [ -gridSpacingX * 0.5, 0, -gridSpacingZ              ]
   const R_pos   = [  gridSpacingX * 0.5, 0, -gridSpacingZ              ]
   const DialPos = [  gridSpacingX * 1.4, 0, -gridSpacingZ * 0.5        ]
+
+  // ───────── NEW: Info panel content/position ─────────
+  const fmtSec = (s) => `${Number.isFinite(s) ? s.toFixed(2) : '0.00'}s`
+  const fmtPct = (p) => `${Number.isFinite(p) ? Math.round(p * 100) : 0}%`
+
+  const infoLines = useMemo(() => ([
+    `Attack  ${fmtSec(attack)}   Decay  ${fmtSec(decay)}`,
+    `Sustain ${fmtPct(sustain)}  Release ${fmtSec(release)}`,
+    `Duration ${fmtSec(duration)}`,
+  ]), [attack, decay, sustain, release, duration])
+
+  const panelOffset = infoPanelOffset ?? [gridSpacingX * 1.4, 0.18, 0] // above the dial by default
+  const [panelW, panelH] = infoPanelSize
+  const lineH = 0.06
 
   return (
     <group position={position} rotation={rotation} scale={scale}>
@@ -169,6 +200,33 @@ export default function ADSRController({
         sensitivity={0.6}
         onChange={onDu}
       />
+
+      {/* ───────── NEW: Info Panel (plane + outline + text) ───────── */}
+      {showInfoPanel && (
+        <group position={panelOffset} rotation={[-Math.PI/2, 0, 0]}>
+          {/* Background plane */}
+          <mesh>
+            <planeGeometry args={[panelW, panelH]} />
+            <meshBasicMaterial color={infoPanelBg} transparent opacity={0.65} />
+          </mesh>
+
+          {/* Text lines */}
+          {infoLines.map((t, i) => (
+            <Text
+              key={i}
+              position={[-panelW * 0.45, (panelH * 0.32) - i * lineH, 0.005]}
+              fontSize={infoFontSize}
+              color={infoText}
+              anchorX="left"
+              anchorY="top"
+              maxWidth={panelW * 0.96}
+              lineHeight={1.1}
+            >
+              {t}
+            </Text>
+          ))}
+        </group>
+      )}
     </group>
   )
 }
