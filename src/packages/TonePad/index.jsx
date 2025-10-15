@@ -5,7 +5,6 @@ import Dial from '../../components/dial'
 import PressablePlanesButton from '../../components/button'
 import { useTonePad } from '../../hooks/useTonePad'
 
-/** Flat, non-billboard label: small plane + Text that faces forward */
 function InfoPlate({
   position = [0, 0, 0],
   size = [0.16, 0.06],
@@ -20,25 +19,10 @@ function InfoPlate({
     <group position={position} rotation={[-Math.PI / 2, 0, 0]} >
       <mesh renderOrder={0}>
         <planeGeometry args={[w, h]} />
-        <meshBasicMaterial
-          color={bg}
-          transparent
-          opacity={opacity}
-          depthWrite={false}
-          side={2 /* DoubleSide to avoid facing issues */}
-        />
+        <meshBasicMaterial color={bg} transparent opacity={opacity} depthWrite={false} side={2} />
       </mesh>
-      <Text
-        renderOrder={2}
-        depthTest={false}
-        position={[0, 0, 0.001]}
-        fontSize={fontSize}
-        color={textColor}
-        anchorX="center"
-        anchorY="middle"
-        maxWidth={w * 0.95}
-        lineHeight={1.05}
-      >
+      <Text renderOrder={2} depthTest={false} position={[0, 0, 0.001]} fontSize={fontSize} color={textColor}
+        anchorX="center" anchorY="middle" maxWidth={w * 0.95} lineHeight={1.05}>
         {text}
       </Text>
     </group>
@@ -46,33 +30,23 @@ function InfoPlate({
 }
 
 export default function TonePad({
-  // Anchor for the whole cluster
   position = [0.45, 0.9, -0.35],
-
-  // Visuals
   size = [0.085, 0.085],
   dialBaseColor = '#324966',
   dialColor = '#f08c00',
   padBaseColor = '#6987f5',
   padButtonColor = '#0370ff',
-
-  // Layout (tuned to match your sketch)
-  leftOrigin = [-0.34, 0.00, 0.0],     // dial column origin (relative to `position`)
-  padOrigin = [0.08, -0.02, 0],   // pad grid origin
-
-  reverbDialGapX = 0.13, // Mix <-> Room
-  dialRowGapY = 0.17, // (reverb row) <-> (octave)
-
+  leftOrigin = [-0.34, 0.00, 0.0],
+  padOrigin = [0.08, -0.02, 0],
+  reverbDialGapX = 0.13,
+  dialRowGapY = 0.17,
   padCols = 4, padRows = 2,
   padGapX = 0.14, padGapY = 0.14,
-
-  // Label plates
   labelOffset = [0, 0, -0.08],
   labelSize = [0.1, 0.06],
-
-  // Parent state
-  synth,    // { waveform, attack, decay, sustain, release, duration, reverbMix, reverbRoomSize, octave, cleanupEps }
-  onChange, // patch setter for { reverbMix, reverbRoomSize, octave }
+  synth,        // parent synth state (current)
+  onChange,     // { reverbMix, reverbRoomSize, octave } patcher
+  onNote,       // (midi) => void  // NEW: notify recorder while recording
 }) {
   const {
     waveform, attack, decay, sustain, release,
@@ -86,9 +60,8 @@ export default function TonePad({
     cleanupEps,
   })
 
-  // C..B then top C (8 pads)
   const noteLayout = useMemo(() => {
-    const baseOct = 4 + Math.round(octave) // -2..+2
+    const baseOct = 4 + Math.round(octave)
     const baseMidiC = 12 * (baseOct + 1)
     const offsets = [0, 2, 4, 5, 7, 9, 11, 12]
     const names = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C']
@@ -101,27 +74,21 @@ export default function TonePad({
 
   const clamp01 = (x) => Math.min(1, Math.max(0, x))
   const pct = (x) => `${Math.round(clamp01(x) * 100)}%`
-  const tFromOct = (o) => clamp01((Math.round(o) + 2) / 4) // -2..+2 -> 0..1
-  const octFromT = (t) => Math.round(t * 4 - 2)
 
-  // Dial change handlers
-  const setMix = useCallback((t01) => onChange?.({ reverbMix: +t01.toFixed(3) }), [onChange])
-  const setRoom = useCallback((t01) => onChange?.({ reverbRoomSize: +t01.toFixed(3) }), [onChange])
-  const setOct = useCallback((t01) => onChange?.({ octave: octFromT(t01) }), [onChange])
-
-  const onPadPress = useCallback((midi) => triggerNote(midi, duration), [triggerNote, duration])
+  const onPadPress = useCallback((midi) => {
+    triggerNote(midi, duration)
+    onNote?.(midi) // notify recorder if recording is on
+  }, [triggerNote, duration, onNote])
 
   // Dial positions (relative to leftOrigin)
   const mixPos = [leftOrigin[0] - reverbDialGapX * 0.5, leftOrigin[2], leftOrigin[1] + dialRowGapY * 0.5]
   const roomPos = [leftOrigin[0] + reverbDialGapX * 0.5, leftOrigin[2], leftOrigin[1] + dialRowGapY * 0.5]
-  const octPos = [leftOrigin[0], leftOrigin[2], leftOrigin[1] - dialRowGapY * 0.5,]
+  const octPos = [leftOrigin[0], leftOrigin[2], leftOrigin[1] - dialRowGapY * 0.5]
 
-  // Label positions (small plane in front of each dial)
   const mixLabelPos = [mixPos[0] + labelOffset[0], mixPos[1] + labelOffset[1], mixPos[2] + labelOffset[2]]
   const roomLabelPos = [roomPos[0] + labelOffset[0], roomPos[1] + labelOffset[1], roomPos[2] + labelOffset[2]]
   const octLabelPos = [octPos[0] + labelOffset[0], octPos[1] + labelOffset[1], octPos[2] + labelOffset[2]]
 
-  // Build 2×4 pad grid positions
   const pads = useMemo(() => {
     const items = []
     const startX = padOrigin[0] - ((padCols - 1) * padGapX) / 2
@@ -129,7 +96,7 @@ export default function TonePad({
     let k = 0
     for (let r = 0; r < padRows; r++) {
       for (let c = 0; c < padCols; c++) {
-        items.push({ i: k++, pos: [startX + c * padGapX, padOrigin[2], startY - r * padGapY,] })
+        items.push({ i: k++, pos: [startX + c * padGapX, padOrigin[2], startY - r * padGapY] })
       }
     }
     return items
@@ -137,7 +104,7 @@ export default function TonePad({
 
   return (
     <group position={position}>
-      {/* ── Left: Reverb row ── */}
+      {/* Reverb mix */}
       <Dial
         position={mixPos}
         size={size}
@@ -151,6 +118,7 @@ export default function TonePad({
       />
       <InfoPlate position={mixLabelPos} size={labelSize} text={`Mix: ${pct(reverbMix)}`} />
 
+      {/* Reverb room size */}
       <Dial
         position={roomPos}
         size={size}
@@ -164,7 +132,7 @@ export default function TonePad({
       />
       <InfoPlate position={roomLabelPos} size={labelSize} text={`Room: ${pct(reverbRoomSize)}`} />
 
-      {/* ── Left: Octave under reverb row ── */}
+      {/* Octave */}
       <Dial
         position={octPos}
         size={size}
@@ -172,13 +140,13 @@ export default function TonePad({
         dialColor={dialColor}
         range={[-2, 2]}
         step={1}
-        stepAngle={Math.PI / 12} // a little larger threshold for deliberate changes
+        stepAngle={Math.PI / 12}
         value={Math.round(octave)}
         onChange={(v) => onChange?.({ octave: Math.round(v) })}
       />
       <InfoPlate position={octLabelPos} size={labelSize} text={`Octave: ${Math.round(octave)}`} />
 
-      {/* ── Right: 2×4 tone pads ── */}
+      {/* 2×4 tone pads */}
       <group>
         {pads.map(({ i, pos }) => {
           const { midi, label } = noteLayout[i] ?? noteLayout[noteLayout.length - 1]
@@ -198,8 +166,8 @@ export default function TonePad({
               label={label}
               labelColor="#ffffff"
               onPressed={() => onPadPress(midi)}
-              onPressDown={() => { }}
-              onPressUp={() => { }}
+              onPressDown={() => {}}
+              onPressUp={() => {}}
             />
           )
         })}

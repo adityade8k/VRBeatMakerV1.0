@@ -2,6 +2,7 @@
 import WaveTypeSelector from '../WaveTypeSelector'
 import ADSRController from '../ADSRController'
 import TonePad from '../TonePad'
+import PlayBackRecorder from '../PlayBackRecorder'
 
 export default function ConsolePanel({
   position = [0, 0.9, -0.35],
@@ -10,13 +11,25 @@ export default function ConsolePanel({
   synth,
   onWaveChange,
   onADSRChange,
-  onSynthPatch,        // NEW: pass-through setter for tonePad dial changes
+  onSynthPatch,
+
+  // transport/recorder state + actions
+  recorder,
 }) {
+  const {
+    sequence, setSequence,
+    selectedTrack, setSelectedTrack,
+    selectedSlots, setSelectedSlots,
+    recording, setRecording,
+    playing, setPlaying,
+    mutes, setMutes,
+    onRecordedNote,
+  } = recorder
+
   return (
     <group position={position} rotation={rotation} scale={[scale, scale, scale]}>
-      {/* Waveform Selector */}
       <WaveTypeSelector
-        position={[-0.2, 0, 0.025]}
+        position={[0, 0, 0.025]}
         spacing={0.07}
         size={[0.055, 0.055]}
         buttonScale={0.6}
@@ -24,9 +37,8 @@ export default function ConsolePanel({
         onChange={onWaveChange}
       />
 
-      {/* ADSR Controller */}
       <ADSRController
-        position={[-0.05, 0.0, 0]}
+        position={[0.17, 0.0, 0]}
         gridSpacingX={0.12}
         gridSpacingZ={0.12}
         size={[0.1, 0.1]}
@@ -41,11 +53,23 @@ export default function ConsolePanel({
         infoPanelSize={[0.34, 0.2]}
       />
 
-      {/* TonePad cluster (right) */}
+      <PlayBackRecorder
+        position={[1.045, 0.0, -0.2]}
+        synth={synth}
+        sequence={sequence} setSequence={setSequence}
+        selectedTrack={selectedTrack} setSelectedTrack={setSelectedTrack}
+        selectedSlots={selectedSlots} setSelectedSlots={setSelectedSlots}
+        recording={recording} setRecording={setRecording}
+        playing={playing} setPlaying={setPlaying}
+        mutes={mutes} setMutes={setMutes}
+      />
+
+      {/* Tone pads: will also notify recorder while recording */}
       <TonePad
-        position={[0.68, 0, 0]}
+        position={[0.85, 0, -0.075]}
         synth={synth}
         onChange={onSynthPatch}
+        onNote={(midi) => onRecordedNote?.(midi)}
       />
     </group>
   )

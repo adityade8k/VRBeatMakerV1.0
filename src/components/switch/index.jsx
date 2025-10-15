@@ -4,19 +4,9 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
 /**
- * ToggleSwitch:
- * - Base plate (plane) lying flat.
- * - Upright thin cylinder (stem) + sphere knob on top.
- * - Rotates around a hinge located at the stem base (on the plate).
- * - Drag forward/back (local Z) to tilt; snaps to ON/OFF on release.
- *
- * Props:
- *  - onToggle(isOn)    : callback when snapped to new state
- *  - isOn              : (optional) controlled state
- *  - defaultOn         : (optional) uncontrolled initial state
- *  - tiltOn/off        : radians, e.g. +0.6 (forward) / -0.6 (back)
- *  - sensitivity       : angle per unit Z delta while dragging
- *  - speed             : smoothing speed for angle lerp
+ * ToggleSwitch with proximity snapping.
+ * - Snaps to ON/OFF when within `snapThreshold` radians of the target angle while dragging.
+ * - Emits onToggle immediately when snapping occurs (debounced).
  */
 export default function ToggleSwitch({
   // Outer transform
@@ -36,12 +26,16 @@ export default function ToggleSwitch({
   knobColor  = '#9c31ee',
 
   // Feel
-  tiltOn  =  +0.6,           // ~34°
-  tiltOff =  -0.6,           // ~-34°
-  sensitivity = 10,         // angle per unit Z (local) while dragging
-  speed = 20,                // smoothing lerp speed (higher = snappier)
+  tiltOn  =  +0.6,          // ~34°
+  tiltOff =  -0.6,          // ~-34°
+  sensitivity = 30,         // angle per unit Z (local) while dragging
+  speed = 50,               // smoothing lerp speed (higher = snappier)
 
-  // State
+  // Proximity snapping
+  snapThreshold = 0.10,      // radians (~5.7°)
+  snapWhileDragging = true,  // snap as soon as you get close
+
+  // State (controlled / uncontrolled)
   isOn: controlledOn,
   defaultOn = false,
   onToggle = () => {},
@@ -67,23 +61,30 @@ export default function ToggleSwitch({
   const startLocalZ = useRef(0)
   const tmp = useMemo(() => new THREE.Vector3(), [])
 
+  // Debounce onToggle while snapping
+  const lastEmittedOn = useRef(isOn)
+
   // Helpers
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x))
   const midAngle = useMemo(() => 0.5 * (tiltOn + tiltOff), [tiltOn, tiltOff])
 
   const setOn = (next) => {
     if (controlledOn === undefined) setInternalOn(next)
-    onToggle(next)
+    // Only emit when the value actually changes
+    if (lastEmittedOn.current !== next) {
+      lastEmittedOn.current = next
+      onToggle(next)
+    }
   }
 
-  // Convert world → local Z in switch group space
+  // world → local Z in switch group space
   const toLocalZ = (worldPoint) => {
     tmp.copy(worldPoint)
     groupRef.current?.worldToLocal(tmp)
     return tmp.z
   }
 
-  // Pointer events on the knob for precise grabbing
+  // Pointer events on the knob
   const onDown = (e) => {
     e.stopPropagation()
     e.target.setPointerCapture?.(e.pointerId)
@@ -97,7 +98,7 @@ export default function ToggleSwitch({
     e.target.releasePointerCapture?.(e.pointerId)
     dragging.current = false
 
-    // Snap to nearest state on release
+    // If we didn't already snap while dragging, snap now to closest state
     const snapOn = currentAngle.current >= midAngle
     targetAngle.current = snapOn ? tiltOn : tiltOff
     if (snapOn !== isOn) setOn(snapOn)
@@ -110,8 +111,30 @@ export default function ToggleSwitch({
     const dz = z - startLocalZ.current
 
     // Desired angle while dragging
-    const desired = clamp(startAngle.current + dz * sensitivity, tiltOff, tiltOn)
-    targetAngle.current = desired // follow finger/ray
+    let desired = clamp(startAngle.current + dz * sensitivity, tiltOff, tiltOn)
+
+    if (snapWhileDragging) {
+      const distToOn  = Math.abs(desired - tiltOn)
+      const distToOff = Math.abs(desired - tiltOff)
+
+      if (distToOn <= snapThreshold) {
+        // Snap to ON immediately
+        desired = tiltOn
+        targetAngle.current = desired
+        if (!isOn) setOn(true)
+        return
+      }
+      if (distToOff <= snapThreshold) {
+        // Snap to OFF immediately
+        desired = tiltOff
+        targetAngle.current = desired
+        if (isOn) setOn(false)
+        return
+      }
+    }
+
+    // Otherwise follow finger/ray smoothly within bounds
+    targetAngle.current = desired
   }
 
   // Smoothly blend current → target every frame
@@ -126,6 +149,7 @@ export default function ToggleSwitch({
   // Keep target in sync if controlled state changes from outside
   useEffect(() => {
     targetAngle.current = isOn ? tiltOn : tiltOff
+    lastEmittedOn.current = isOn
   }, [isOn, tiltOn, tiltOff])
 
   return (
@@ -134,20 +158,18 @@ export default function ToggleSwitch({
         {/* Base: face up */}
         <mesh ref={baseRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <primitive object={baseGeo} attach="geometry" />
-          <meshStandardMaterial color={baseColor} metalness={0.1} roughness={0.8} transparent
-            opacity={0.6} />
+          <meshStandardMaterial color={baseColor} metalness={0.1} roughness={0.8} transparent opacity={0.6} />
         </mesh>
 
         {/* Hinge at stem base (on top of plate) */}
         <group ref={hingeRef} position={[0, 0, 0]}>
-          {/* We place the stem so its base sits at the hinge pivot:
-              cylinder is centered at its local Y=0, so lift by h/2 */}
+          {/* Stem (centered, lifted so base sits at hinge) */}
           <mesh position={[0, stemHeight / 2, 0]} castShadow>
             <primitive object={stemGeo} attach="geometry" />
             <meshStandardMaterial color={stemColor} metalness={0.2} roughness={0.6} />
           </mesh>
 
-          {/* Knob at top of stem */}
+          {/* Knob with pointer interaction */}
           <mesh
             position={[0, stemHeight + knobRadius, 0]}
             castShadow
