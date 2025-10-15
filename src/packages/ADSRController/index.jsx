@@ -58,7 +58,7 @@ export default function ADSRController({
 
   // Behavior
   hardStops = true,
-  friction = 0.5,
+  friction = 0.8,
   sensitivity = 0.2,
 
   // Unified patch emitter
