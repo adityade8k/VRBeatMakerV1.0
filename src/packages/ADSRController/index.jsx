@@ -197,7 +197,7 @@ export default function ADSRController({
         value={nDur}
         hardStops
         friction={0.5}
-        sensitivity={0.2}
+        sensitivity={0.5}
         onChange={onDu}
       />
 

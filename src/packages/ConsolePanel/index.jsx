@@ -1,46 +1,51 @@
+// src/packages/ConsolePanel.jsx
 import WaveTypeSelector from '../WaveTypeSelector'
 import ADSRController from '../ADSRController'
+import TonePad from '../TonePad'
 
-/**
- * ConsolePanel
- * - A single, reusable cluster that hosts both WaveTypeSelector and ADSRController.
- * - Provide `synth` and `onChange` from parent.
- */
 export default function ConsolePanel({
   position = [0, 0.9, -0.35],
+  rotation = [0, 0, 0],
   synth,
   onWaveChange,
   onADSRChange,
+  onSynthPatch,        // NEW: pass-through setter for tonePad dial changes
 }) {
   return (
-    <group position={position}>
-      
-        {/* Waveform Selector (right side) */}
-        <WaveTypeSelector
-          position={[-0.2, 0, 0.025]}
-          spacing={0.07}
-          size={[0.055, 0.055]}
-          buttonScale={0.6}
-          selected={synth.waveform}
-          onChange={onWaveChange}
-        />
+    <group position={position} rotation={rotation}>
+      {/* Waveform Selector */}
+      <WaveTypeSelector
+        position={[-0.2, 0, 0.025]}
+        spacing={0.07}
+        size={[0.055, 0.055]}
+        buttonScale={0.6}
+        selected={synth.waveform}
+        onChange={onWaveChange}
+      />
 
-        {/* ADSR Controller (left side) with built-in info panel */}
-        <ADSRController
-          position={[-0.05, 0.0, 0]}
-          gridSpacingX={0.12}
-          gridSpacingZ={0.12}
-          size={[0.1, 0.1]}
-          attack={synth.attack}
-          decay={synth.decay}
-          sustain={synth.sustain}
-          release={synth.release}
-          duration={synth.duration}
-          onChange={onADSRChange}
-          showInfoPanel       // NEW: makes the controller render its own plane + text
-          infoPanelOffset={[0.061, 0, -0.3]} // tweak vertical offset above controls
-          infoPanelSize={[0.34, 0.2]}    // (width, height) of the plane
-        />
+      {/* ADSR Controller */}
+      <ADSRController
+        position={[-0.05, 0.0, 0]}
+        gridSpacingX={0.12}
+        gridSpacingZ={0.12}
+        size={[0.1, 0.1]}
+        attack={synth.attack}
+        decay={synth.decay}
+        sustain={synth.sustain}
+        release={synth.release}
+        duration={synth.duration}
+        onChange={onADSRChange}
+        showInfoPanel
+        infoPanelOffset={[0.061, 0, -0.3]}
+        infoPanelSize={[0.34, 0.2]}
+      />
+
+      {/* TonePad cluster (right) */}
+      <TonePad
+        position={[0.68, 0, 0]}
+        synth={synth}
+        onChange={onSynthPatch}
+      />
     </group>
   )
 }
