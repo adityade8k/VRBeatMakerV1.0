@@ -55,8 +55,8 @@ export default function SceneCanvas({ store }) {
         <ConsolePanel
           
           rotation={[0, 0, 0]}
-          position={[-0.3, 0.95, 1.8]}
-          // position = {[-0.2, 0.85, -0.35]}
+          // position={[-0.3, 0.95, 1.8]}
+          position = {[-0.2, 0.85, -0.35]}
           scale = {0.8}
           synth={synthParams}
           onWaveChange={setWaveform}
