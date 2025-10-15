@@ -58,8 +58,8 @@ export default function ADSRController({
 
   // Behavior
   hardStops = true,
-  friction = 0.92,
-  sensitivity = 1.0,
+  friction = 0.5,
+  sensitivity = 0.2,
 
   // Unified patch emitter
   onChange = () => {},
@@ -196,8 +196,8 @@ export default function ADSRController({
         maxValue={DUR_RANGE[1]}
         value={nDur}
         hardStops
-        friction={0.92}
-        sensitivity={0.6}
+        friction={0.5}
+        sensitivity={0.2}
         onChange={onDu}
       />
 

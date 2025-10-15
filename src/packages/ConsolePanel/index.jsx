@@ -17,7 +17,7 @@ export default function ConsolePanel({
       
         {/* Waveform Selector (right side) */}
         <WaveTypeSelector
-          position={[-0.22, 0, 0]}
+          position={[-0.22, 0, 0.03]}
           spacing={0.07}
           size={[0.055, 0.055]}
           buttonScale={0.6}
