@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { XR } from '@react-three/xr'
 import ConsolePanel from '../../packages/ConsolePanel'
+import BitmapTextProvider from '../bitmapText/BitmapTextProvider'
 
 const makeEmptySeq = () => Array.from({ length: 5 }, () => Array.from({ length: 16 }, () => []))
 
@@ -72,13 +73,15 @@ export default function SceneCanvas({ store }) {
 
   return (
     <Canvas dpr={[1, 2]} camera={{ position: [0, 1.2, 2.2], fov: 60 }}>
+       <BitmapTextProvider useMipmaps={false} toneMapped={false}>
       <color attach="background" args={['#ffffff']} />
       <XR store={store}>
         <ambientLight intensity={0.8} />
         <directionalLight position={[2, 3, 1]} intensity={0.9} />
         <ConsolePanel
           rotation={[0, 0, 0]}
-          position={[-0.8, 0.85, -0.35]}
+          // position={[-0.8, 0.85, -0.35]}
+          position={[-0.55, 0.6, 1.6]}
           scale={0.8}
           synth={synthParams}
           onWaveChange={setWaveform}
@@ -87,6 +90,7 @@ export default function SceneCanvas({ store }) {
           recorder={recorder}
         />
       </XR>
+      </BitmapTextProvider>
     </Canvas>
   )
 }

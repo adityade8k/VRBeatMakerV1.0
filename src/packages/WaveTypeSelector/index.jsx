@@ -28,7 +28,7 @@ export default function WaveTypeSelector({
           buttonScale={buttonScale}
           showLabel
           label={wave}
-          labelColor="#ffffff"
+          labelColor="#000000"
           requireBottomForToggle
           activationThreshold={0.95}
           controlledIsOn={isOn}

@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Text } from '@react-three/drei'
+import BitmapText from '../../components/bitmapText'
 
 function midiToName(m) {
   const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
@@ -16,19 +16,14 @@ function slotLabel(slot = []) {
   return `${names[0]}·${names[1]} +${names.length - 2}`
 }
 
-/**
- * If `playhead` is provided, the visualizer is controlled (no internal timer).
- * Otherwise it advances internally while `playing===true`.
- */
 export default function SequenceVisualizer({
   sequence = [],
   selectedTrack = 0,
   selectedSlots = [0],
-  recording = false,
   playing = false,
   mutes = Array(5).fill(false),
   stepSeconds = 0.5,
-  playhead, // optional controlled playhead
+  playhead, // controlled
   position = [0.4, 0.85, -0.25],
   rotation = [-Math.PI / 2, 0, 0],
   scale = 0.9,
@@ -37,7 +32,6 @@ export default function SequenceVisualizer({
 }) {
   const rows = 5, cols = 16
 
-  // Internal playhead (used only if uncontrolled)
   const [ph, setPh] = useState(0)
   const acc = useRef(0)
 
@@ -84,23 +78,19 @@ export default function SequenceVisualizer({
 
   return (
     <group position={position} rotation={rotation} scale={[scale, scale, scale]}>
-      <Text position={[0, 0.06, (halfH + 0.2)]} rotation={[Math.PI / 2, 0, 0]} fontSize={0.06} color="#0f172a" anchorX="center" anchorY="middle">
-        Sequence
-      </Text>
-
       {Array.from({ length: rows }).map((_, r) => (
         <group key={`row-${r}`}>
-          <Text
-            position={[-(halfW + 0.25), 0.0, (r * strideZ) - halfH]}
+          {/* Row label */}
+          <BitmapText
+            text={`T${r + 1}${mutes?.[r] ? ' (M)' : ''}`}
+            position={[-(halfW + 0.065), 0.0, (r * strideZ) - halfH]}
             rotation={[Math.PI / 2, 0, 0]}
-            fontSize={0.04}
+            scale={[0.04, 0.04, 0.04]}
             color={mutes?.[r] ? '#94a3b8' : (r === selectedTrack ? '#2563eb' : '#334155')}
-            anchorX="right"
+            align="right"
             anchorY="middle"
-            maxWidth={0.3}
-          >
-            {`T${r + 1}${mutes?.[r] ? ' (M)' : ''}`}
-          </Text>
+            maxWidth={0.3 / 0.04}
+          />
 
           {Array.from({ length: cols }).map((__, c) => {
             const x = (c * strideX) - halfW
@@ -124,10 +114,18 @@ export default function SequenceVisualizer({
                     roughness={0.6} metalness={0.0}
                   />
                 </mesh>
+
                 {label && (
-                  <Text position={[0, -0.1, 0]} rotation={[Math.PI / 2, 0, 0]} fontSize={0.028} color="#0f172a" anchorX="center" anchorY="middle" maxWidth={cw * 1.2}>
-                    {label}
-                  </Text>
+                  <BitmapText
+                    text={label}
+                    position={[0, -0.05, 0]}
+                    rotation={[Math.PI / 2, 0, 0]}
+                    scale={[0.028, 0.028, 0.028]}
+                    color="#0f172a"
+                    align="center"
+                    anchorY="middle"
+                    maxWidth={(cw * 1.2) / 0.028}
+                  />
                 )}
               </group>
             )

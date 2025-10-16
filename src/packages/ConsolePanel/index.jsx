@@ -27,9 +27,9 @@ export default function ConsolePanel({
   return (
     <group position={position} rotation={rotation} scale={[scale, scale, scale]}>
       <WaveTypeSelector
-        position={[0, 0, 0.025]}
-        spacing={0.07}
-        size={[0.055, 0.055]}
+        position={[-0.05, 0, 0.008]}
+        spacing={0.1}
+        size={[0.075, 0.075]}
         buttonScale={0.6}
         selected={synth.waveform}
         onChange={onWaveChange}

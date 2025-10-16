@@ -5,28 +5,22 @@ import ToggleSwitch from '../../components/switch'
 import PressablePlanesButton from '../../components/button'
 import { useTonePad } from '../../hooks/useTonePad'
 import SequenceVisualizer from '../SequenceVisualizer'
-import { Text } from '@react-three/drei'
+import BitmapText from '../../components/bitmapText'
 
-function Plate({ position=[0,0,0], size=[0.16,0.06], text='', fontSize=0.022 }) {
+function Plate({ position=[0,0,0], size=[0.16,0.06], text='', fontSize=0.022, color="#000000" }) {
   const [w,h] = size
   return (
     <group position={position} rotation={[-Math.PI/2,0,0]}>
-      <mesh>
-        <planeGeometry args={[w,h]} />
-        <meshBasicMaterial color="#0f172a" transparent opacity={0.8} depthWrite={false} />
-      </mesh>
-      <Text
-        renderOrder={2}
-        depthTest={false}
-        position={[0,0,0.001]}
-        fontSize={fontSize}
-        color="#cbd5e1"
-        anchorX="center"
+      <BitmapText
+        text={text}
+        position={[ -w*0.48, 0, 0.01 ]}
+        rotation={[Math.PI,0,0]}
+        scale={[fontSize, fontSize, fontSize]}
+        color={color}
+        align="left"
         anchorY="middle"
-        maxWidth={w*0.95}
-      >
-        {text}
-      </Text>
+        maxWidth={(w * 0.95) / fontSize}
+      />
     </group>
   )
 }
@@ -40,7 +34,6 @@ export default function PlayBackRecorder({
   padBaseColor='#6987f5',
   padButtonColor='#0370ff',
 
-  // State from parent
   synth,
   sequence, setSequence,
   selectedTrack, setSelectedTrack,
@@ -50,7 +43,6 @@ export default function PlayBackRecorder({
   mutes, setMutes,
   recDuration, setRecDuration,
 }) {
-  // Playback synth (plays recorded notes with their stored synth config when available)
   const { triggerNote, triggerNoteWith } = useTonePad({
     waveform: synth.waveform,
     attack: synth.attack, decay: synth.decay, sustain: synth.sustain, release: synth.release,
@@ -61,7 +53,6 @@ export default function PlayBackRecorder({
   const clamp = (v,a,b)=>Math.min(b,Math.max(a,v))
   const uniqSorted = (arr)=>[...new Set(arr)].sort((a,b)=>a-b)
 
-  // Ensure 5x16 shape once
   const ensureSeq = useCallback((seq)=>{
     if (Array.isArray(seq) && seq.length===5 && seq.every(t=>Array.isArray(t) && t.length===16)) return seq
     return Array.from({length:5},()=>Array.from({length:16},()=>[]))
@@ -71,7 +62,6 @@ export default function PlayBackRecorder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[])
 
-  // Delete selected slots (guard if playing)
   const deleteSelected = useCallback(()=>{
     if (playing) return
     setSequence(prev=>{
@@ -83,7 +73,6 @@ export default function PlayBackRecorder({
     })
   },[ensureSeq, selectedTrack, selectedSlots, setSequence, playing])
 
-  // Transport clock (single interval) + playhead (authoritative for visualizer)
   const stepRef = useRef(0)
   const timerRef = useRef(null)
   const [playhead, setPlayhead] = useState(0)
@@ -97,7 +86,7 @@ export default function PlayBackRecorder({
     const ms = Math.max(30, (recDuration ?? 0.5) * 1000)
     timerRef.current = setInterval(()=>{
       const s = stepRef.current
-      setPlayhead(s) // highlight the slot we’re about to play
+      setPlayhead(s)
       for (let t=0;t<5;t++){
         if (mutes[t]) continue
         const events = (sequence?.[t]?.[s]) || []
@@ -117,7 +106,6 @@ export default function PlayBackRecorder({
     return stopClock
   },[playing, startClock, stopClock])
 
-  // Delete-multiple selection state
   const [delMulti, setDelMulti] = useState(false)
   const [anchorSlot, setAnchorSlot] = useState(selectedSlots[0] ?? 0)
   const [slotDialVal, setSlotDialVal] = useState(selectedSlots[0] ?? 0)
@@ -133,7 +121,6 @@ export default function PlayBackRecorder({
     if (!delMulti && selectedSlots.length>1) setSelectedSlots([selectedSlots[0]])
   },[delMulti, selectedSlots, setSelectedSlots])
 
-  // Dials
   const onSlotDial = useCallback((v)=>{
     const idx = Math.round(clamp(v,0,15))
     setSlotDialVal(idx)
@@ -151,7 +138,7 @@ export default function PlayBackRecorder({
 
   const onDurDial = useCallback((v)=>{
     const sec = Math.round(clamp(v,0.1,1.0)*100)/100
-    setRecDuration(sec) // step length for transport
+    setRecDuration(sec)
   },[setRecDuration])
 
   const prettySel = useMemo(()=>{
@@ -159,7 +146,6 @@ export default function PlayBackRecorder({
     return s.length>3 ? `${s[0]}..${s[s.length-1]} (${s.length})` : s.join(',')
   },[selectedSlots])
 
-  // Layout positions
   const topRowZ = -0.32
   const rowGapZ = 0.12
   const firstRowZ = 0.0
@@ -177,7 +163,6 @@ export default function PlayBackRecorder({
 
   return (
     <group position={position}>
-      {/* Track mute switches */}
       {trackSwitches.map(({ i, pos }) => (
         <group key={`trk-sw-${i}`} position={pos}>
           <ToggleSwitch
@@ -194,9 +179,9 @@ export default function PlayBackRecorder({
         </group>
       ))}
 
-      {/* Transport & edit */}
       <PressablePlanesButton
         mode="toggle"
+        labelColor="#000000"
         position={playPos}
         size={size}
         baseColor={padBaseColor}
@@ -227,6 +212,7 @@ export default function PlayBackRecorder({
 
       <PressablePlanesButton
         mode="long-press"
+        labelColor="#000000"
         position={delPos}
         size={size}
         baseColor={padBaseColor}
@@ -241,6 +227,7 @@ export default function PlayBackRecorder({
 
       <PressablePlanesButton
         mode="toggle"
+        labelColor="#000000"
         position={delMulPos}
         size={size}
         baseColor={padBaseColor}
@@ -256,7 +243,6 @@ export default function PlayBackRecorder({
         }}
       />
 
-      {/* Dials */}
       <Dial position={slotDialPos} size={size} baseColor={dialBaseColor} dialColor={dialColor}
             range={[0,15]} step={1} stepAngle={Math.PI/12} value={slotDialVal} onChange={onSlotDial} />
       <Plate position={[slotDialPos[0],slotDialPos[1],slotDialPos[2]-0.08]} text={`Slot: ${prettySel || '0'}`} />
@@ -265,12 +251,10 @@ export default function PlayBackRecorder({
             range={[0,4]} step={1} stepAngle={Math.PI/12} value={selectedTrack} onChange={onTrackDial} />
       <Plate position={[trackDialPos[0],trackDialPos[1],trackDialPos[2]-0.08]} text={`Track: ${selectedTrack+1}`} />
 
-      {/* Transport step (duration) */}
       <Dial position={durDialPos} size={size} baseColor={dialBaseColor} dialColor={dialColor}
             range={[0.1,1.0]} step={0.05} stepAngle={Math.PI/18} value={recDuration} onChange={onDurDial} />
       <Plate position={durLabelPos} text={`Step: ${Number(recDuration).toFixed(2)}s`} />
 
-      {/* Visualizer as child (controlled by playhead) */}
       <SequenceVisualizer
         sequence={sequence}
         selectedTrack={selectedTrack}
