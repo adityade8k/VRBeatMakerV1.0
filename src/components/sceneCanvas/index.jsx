@@ -80,8 +80,8 @@ export default function SceneCanvas({ store }) {
         <directionalLight position={[2, 3, 1]} intensity={0.9} />
         <ConsolePanel
           rotation={[0, 0, 0]}
-          // position={[-0.55, 0.8, -0.35]}
-          position={[-0.55, 0.6, 1.6]}
+          position={[-0.55, 0.8, -0.35]}
+          // position={[-0.55, 0.6, 1.6]}
           scale={0.8}
           synth={synthParams}
           onWaveChange={setWaveform}
