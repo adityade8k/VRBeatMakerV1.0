@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
-import { useBitmapTextAtlas } from './BitmapTextProvider'
+import { useBitmapTextAtlas } from './bitmapTextProvider'
 
 const matCache = new Map()
 function getTintedMaterial(baseMat, color, opacity) {
