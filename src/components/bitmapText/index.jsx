@@ -125,7 +125,7 @@ export default function BitmapText({
     return geo
   }, [tokens, atlas, quadWidth, quadHeight, lineHeight, align, anchorY])
 
-  const mat = useMemo(() => getTintedMaterial(sharedMaterial, "ffffff", opacity), [sharedMaterial, color, opacity])
+  const mat = useMemo(() => getTintedMaterial(sharedMaterial, "#ffffff", opacity), [sharedMaterial, color, opacity])
 
   return (
     <group position={position} rotation={rotation} scale={scale}>
