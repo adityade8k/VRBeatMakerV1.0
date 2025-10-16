@@ -44,11 +44,6 @@ export default function ToggleSwitch({
   const baseRef   = useRef()
   const hingeRef  = useRef()  // pivot at the stem base (rotation happens here)
 
-  // Geos
-  const baseGeo = useMemo(() => new THREE.PlaneGeometry(size[0], size[1]), [size])
-  const stemGeo = useMemo(() => new THREE.CylinderGeometry(stemRadius, stemRadius, stemHeight, 24), [stemRadius, stemHeight])
-  const knobGeo = useMemo(() => new THREE.SphereGeometry(knobRadius, 24, 16), [knobRadius])
-
   // Uncontrolled fallback
   const [internalOn, setInternalOn] = useState(defaultOn)
   const isOn = controlledOn ?? internalOn
@@ -59,7 +54,7 @@ export default function ToggleSwitch({
   const dragging = useRef(false)
   const startAngle = useRef(0)
   const startLocalZ = useRef(0)
-  const tmp = useMemo(() => new THREE.Vector3(), [])
+  const tmpV3Ref = useRef(new THREE.Vector3())
 
   // Debounce onToggle while snapping
   const lastEmittedOn = useRef(isOn)
@@ -70,7 +65,6 @@ export default function ToggleSwitch({
 
   const setOn = (next) => {
     if (controlledOn === undefined) setInternalOn(next)
-    // Only emit when the value actually changes
     if (lastEmittedOn.current !== next) {
       lastEmittedOn.current = next
       onToggle(next)
@@ -79,14 +73,16 @@ export default function ToggleSwitch({
 
   // world → local Z in switch group space
   const toLocalZ = (worldPoint) => {
+    const tmp = tmpV3Ref.current
     tmp.copy(worldPoint)
     groupRef.current?.worldToLocal(tmp)
     return tmp.z
   }
 
-  // Pointer events on the knob
+  // Pointer events on the knob only (prevents near-miss triggers)
   const onDown = (e) => {
     e.stopPropagation()
+    if ('buttons' in e && e.buttons !== 1) return
     e.target.setPointerCapture?.(e.pointerId)
     dragging.current = true
     startAngle.current = currentAngle.current
@@ -118,14 +114,12 @@ export default function ToggleSwitch({
       const distToOff = Math.abs(desired - tiltOff)
 
       if (distToOn <= snapThreshold) {
-        // Snap to ON immediately
         desired = tiltOn
         targetAngle.current = desired
         if (!isOn) setOn(true)
         return
       }
       if (distToOff <= snapThreshold) {
-        // Snap to OFF immediately
         desired = tiltOff
         targetAngle.current = desired
         if (isOn) setOn(false)
@@ -133,7 +127,6 @@ export default function ToggleSwitch({
       }
     }
 
-    // Otherwise follow finger/ray smoothly within bounds
     targetAngle.current = desired
   }
 
@@ -152,12 +145,17 @@ export default function ToggleSwitch({
     lastEmittedOn.current = isOn
   }, [isOn, tiltOn, tiltOff])
 
+  // Declarative geometry args → R3F owns disposal (no <primitive />)
+  const basePlaneArgs = useMemo(() => [size[0], size[1]], [size])
+  const stemCylArgs   = useMemo(() => [stemRadius, stemRadius, stemHeight, 24], [stemRadius, stemHeight])
+  const knobSphereArgs= useMemo(() => [knobRadius, 24, 16], [knobRadius])
+
   return (
     <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
       <Suspense fallback={null}>
         {/* Base: face up */}
         <mesh ref={baseRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <primitive object={baseGeo} attach="geometry" />
+          <planeGeometry args={basePlaneArgs} />
           <meshStandardMaterial color={baseColor} metalness={0.1} roughness={0.8} transparent opacity={0.6} />
         </mesh>
 
@@ -165,7 +163,7 @@ export default function ToggleSwitch({
         <group ref={hingeRef} position={[0, 0, 0]}>
           {/* Stem (centered, lifted so base sits at hinge) */}
           <mesh position={[0, stemHeight / 2, 0]} castShadow>
-            <primitive object={stemGeo} attach="geometry" />
+            <cylinderGeometry args={stemCylArgs} />
             <meshStandardMaterial color={stemColor} metalness={0.2} roughness={0.6} />
           </mesh>
 
@@ -179,7 +177,7 @@ export default function ToggleSwitch({
             onPointerOut={onUp}
             onPointerMove={onMove}
           >
-            <primitive object={knobGeo} attach="geometry" />
+            <sphereGeometry args={knobSphereArgs} />
             <meshStandardMaterial color={knobColor} metalness={0.1} roughness={0.4} />
           </mesh>
         </group>

@@ -1,152 +1,131 @@
-// components/roller.jsx
-import { useMemo, useRef, useEffect } from 'react'
+// src/components/roller.jsx
+import { useRef, useEffect, useMemo, useCallback, useState } from 'react'
 import * as THREE from 'three'
 
 /**
- * Step Roller (axis = X, faces ∥ YZ, spin around X via local Z motion)
- * - One tick per contact (locks until pointer leaves).
+ * Roller (stepped)
+ * Props:
+ * - position, rotation, scale
+ * - size=[w,h]; baseColor, diskColor
+ * - range=[min,max], step (value tick), stepAngle (visual)
+ * - value (number), onChange(number)
+ *
+ * Behavior:
+ * - Drag forward/back (local Z) to rotate the disk.
+ * - Emits stepped values; only one change per step crossing.
  */
 export default function Roller({
-  // Transform
-  position = [0, 1, -0.6],
-  rotation = [0, 0, 0],
-  scale    = [1, 1, 1],
+  position=[0,1,-0.6],
+  rotation=[0,0,0],
+  scale=[1,1,1],
 
-  // Visuals
-  size = [0.1, 0.1],          // base plane size (lies on XZ)
-  baseColor = '#324966',
-  diskColor = '#fc45c8',
-  diskThickness = 0.035,
-  diskSegments = 8,
+  size=[0.1,0.1],
+  baseColor='#324966',
+  diskColor='#fc45c8',
+  diskThickness=0.035,
+  diskSegments=8,
 
-  // Value space
-  range = [0, 1],
-  step = 0.05,
-  stepAngle = Math.PI / 4.5,   // ~10°
+  range=[0,1],
+  step=0.05,
+  stepAngle=Math.PI/4.5,   // ~10°
 
-  // Controlled value
-  value = 0,
-
-  onChange = () => {},
+  value=0,
+  onChange=()=>{},
 }) {
-  const groupRef     = useRef()  // whole control
-  const wheelSpinRef = useRef()  // ROTATES AROUND X (parent)
-  const wheelPoseRef = useRef()  // child: fixes cylinder axis -> X (faces ∥ YZ)
+  const groupRef = useRef()
+  const diskRef  = useRef()
+  const pressedRef = useRef(false)
+  const startZRef  = useRef(0)
+  const startValRef= useRef(value)
+  const tmpV3Ref   = useRef(new THREE.Vector3())
 
-  const baseGeo = useMemo(() => new THREE.PlaneGeometry(size[0], size[1]), [size])
-  const radius  = useMemo(() => Math.min(size[0], size[1]) * 0.45, [size])
-  const diskGeo = useMemo(
-    () => new THREE.CylinderGeometry(radius, radius, diskThickness, diskSegments),
-    [radius, diskThickness, diskSegments]
-  )
+  const clamp = useCallback((v, a, b)=>Math.max(a, Math.min(b, v)), [])
+  const snap  = useCallback((v)=>{
+    const t = Math.round((v - range[0]) / step) * step + range[0]
+    const fixed = Number((Math.round(t/step)*step).toFixed(6))
+    return clamp(fixed, range[0], range[1])
+  }, [range, step, clamp])
 
-  // Interaction state
-  const isActive   = useRef(false)
-  const locked     = useRef(false)   // prevent repeat within same contact
-  const startAngle = useRef(0)       // wheelSpinRef.rotation.x at contact begin
-  const lastZ      = useRef(0)       // last local Z
-  const accum      = useRef(0)       // accumulated implied angle
+  // visual angle smoothing
+  const [angle, setAngle] = useState(0)
+  const targetAngle = useMemo(()=>{
+    const t = (value - range[0]) / (range[1] - range[0] || 1)
+    const ticks = Math.round(t / (step / (range[1]-range[0] || 1)))
+    return ticks * stepAngle
+  }, [value, range, step, stepAngle])
 
-  const [min, max] = range
-  const clamp = (x) => Math.min(max, Math.max(min, x))
+  useEffect(()=>{
+    let raf=0
+    const tick=()=>{
+      setAngle(a=>{
+        const next = a + (targetAngle - a) * 0.2
+        return Math.abs(next - targetAngle) < 1e-4 ? targetAngle : next
+      })
+      raf=requestAnimationFrame(tick)
+    }
+    raf=requestAnimationFrame(tick)
+    return ()=>cancelAnimationFrame(raf)
+  }, [targetAngle])
 
-  // Child pose: turn default Y-axis cylinder so its axis becomes X (faces ∥ YZ)
-  useEffect(() => {
-    if (wheelPoseRef.current) wheelPoseRef.current.rotation.set(0, 0, Math.PI / 2)
+  useEffect(()=>{
+    if (diskRef.current) {
+      diskRef.current.rotation.x = angle
+    }
+  }, [angle])
+
+  const onPointerDown = useCallback((e)=>{
+    e.stopPropagation()
+    pressedRef.current = true
+    startZRef.current = e.clientY ?? e.pointer?.y ?? 0 // use vertical motion to avoid camera-parallax confusion
+    startValRef.current = value
+    e.target.setPointerCapture?.(e.pointerId)
+  }, [value])
+
+  const onPointerMove = useCallback((e)=>{
+    if (!pressedRef.current) return
+    const z = e.clientY ?? e.pointer?.y ?? 0
+    const dz = (startZRef.current - z) / 220 // pixels → value
+    const span = range[1]-range[0]
+    const next = snap(startValRef.current + dz * span * 0.25) // feel factor
+    if (next !== value) onChange(next)
+  }, [onChange, snap, value, range])
+
+  const onPointerUp = useCallback((e)=>{
+    if (!pressedRef.current) return
+    pressedRef.current = false
+    e.target.releasePointerCapture?.(e.pointerId)
   }, [])
 
-  // Keep visual spin in sync with controlled value (apply on wheelSpinRef.rotation.x)
-  useEffect(() => {
-    if (!wheelSpinRef.current) return
-    const stepsFromMin = Math.round((value - min) / step)
-    wheelSpinRef.current.rotation.x = stepsFromMin * stepAngle
-  }, [value, min, step, stepAngle])
-
-  // World → local Z in control space
-  const toLocalZ = (worldPoint) => {
-    const tmp = new THREE.Vector3().copy(worldPoint)
-    groupRef.current?.worldToLocal(tmp)
-    return tmp.z
-  }
-
-  const onDown = (e) => {
-    e.stopPropagation()
-    e.target.setPointerCapture?.(e.pointerId)
-    isActive.current = true
-    locked.current = false
-    lastZ.current = toLocalZ(e.point)
-    startAngle.current = wheelSpinRef.current?.rotation.x ?? 0
-    accum.current = 0
-  }
-
-  const onUpOrOut = (e) => {
-    e.stopPropagation()
-    e.target?.releasePointerCapture?.(e.pointerId)
-    isActive.current = false
-    locked.current = false
-    accum.current = 0
-  }
-
-  const onMove = (e) => {
-    if (!isActive.current || locked.current) return
-    e.stopPropagation()
-
-    const z  = toLocalZ(e.point)
-    const dz = z - lastZ.current
-    lastZ.current = z
-
-    // Forward/back (local Z) → implied wheel angle (θ ≈ dz / r)
-    const dTheta = dz / Math.max(radius, 1e-4)
-    accum.current += dTheta
-
-    const dir = Math.sign(accum.current)
-    if (Math.abs(accum.current) >= stepAngle && dir !== 0) {
-      const candidate = clamp(value + dir * step)
-      if (candidate !== value) {
-        // Snap one tick from baseline around X
-        if (wheelSpinRef.current) {
-          const nextRot = startAngle.current + dir * stepAngle
-          wheelSpinRef.current.rotation.x = nextRot
-        }
-        locked.current = true
-        onChange(candidate)
-      } else {
-        locked.current = true // at domain limit; suppress repeats
-      }
-    }
-  }
+  const planeArgs = useMemo(()=>[size[0], size[1]], [size])
+  const cylArgs   = useMemo(()=>[
+    size[0]*0.35, size[0]*0.35, diskThickness, Math.max(8, diskSegments)
+  ], [size, diskThickness, diskSegments])
 
   return (
     <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
-      {/* base on XZ plane */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <primitive object={baseGeo} attach="geometry" />
-        <meshStandardMaterial
-          color={baseColor}
-          metalness={0.1}
-          roughness={0.8}
-          transparent
-          opacity={0.6}
-        />
+      {/* Base plate */}
+      <mesh rotation={[-Math.PI/2,0,0]}>
+        <planeGeometry args={planeArgs} />
+        <meshBasicMaterial color={baseColor} />
       </mesh>
 
-      {/* Spin first (around X), then pose the cylinder so faces ∥ YZ */}
-      <group
-        ref={wheelSpinRef}
-        position={[0, diskThickness * 0.5 + 0.001, 0]}
-        onPointerDown={onDown}
-        onPointerUp={onUpOrOut}
-        onPointerCancel={onUpOrOut}
-        onPointerOut={onUpOrOut}
-        onPointerMove={onMove}
+      {/* Disk that spins around X */}
+      <mesh ref={diskRef} position={[0, diskThickness*0.5 + 0.001, 0]} rotation={[0,0,Math.PI/2]}>
+        <cylinderGeometry args={cylArgs} />
+        <meshStandardMaterial color={diskColor} metalness={0.1} roughness={0.5} />
+      </mesh>
+
+      {/* Interaction catcher */}
+      <mesh
+        position={[0, diskThickness*0.6, 0]}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
       >
-        <group ref={wheelPoseRef}>
-          <mesh castShadow>
-            <primitive object={diskGeo} attach="geometry" />
-            <meshStandardMaterial color={diskColor} metalness={0.3} roughness={0.4} />
-          </mesh>
-        </group>
-      </group>
+        <cylinderGeometry args={[size[0]*0.5, size[0]*0.5, diskThickness*2, 8]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
     </group>
   )
 }
