@@ -17,8 +17,8 @@ function slotLabel(slot = []) {
 }
 
 /**
- * Props:
- *  - (new) playhead?: number  ← if provided, visualizer becomes controlled
+ * If `playhead` is provided, the visualizer is controlled (no internal timer).
+ * Otherwise it advances internally while `playing===true`.
  */
 export default function SequenceVisualizer({
   sequence = [],
@@ -28,7 +28,7 @@ export default function SequenceVisualizer({
   playing = false,
   mutes = Array(5).fill(false),
   stepSeconds = 0.5,
-  playhead, // ← controlled optional
+  playhead, // optional controlled playhead
   position = [0.4, 0.85, -0.25],
   rotation = [-Math.PI / 2, 0, 0],
   scale = 0.9,
@@ -37,11 +37,10 @@ export default function SequenceVisualizer({
 }) {
   const rows = 5, cols = 16
 
-  // internal playhead only if uncontrolled
+  // Internal playhead (used only if uncontrolled)
   const [ph, setPh] = useState(0)
   const acc = useRef(0)
 
-  // start from selected slot when playing (uncontrolled mode only)
   useEffect(() => {
     if (playing && playhead === undefined) {
       const startCol = Number.isFinite(selectedSlots?.[0]) ? selectedSlots[0] : 0
@@ -50,7 +49,6 @@ export default function SequenceVisualizer({
     }
   }, [playing, selectedSlots, cols, playhead])
 
-  // advance when uncontrolled
   useFrame((_, dt) => {
     if (!playing || playhead !== undefined) return
     acc.current += dt
@@ -114,12 +112,16 @@ export default function SequenceVisualizer({
 
             return (
               <group key={`cell-${r}-${c}`} position={[x, 0, z]}>
-                <mesh><boxGeometry args={cellSize} /><meshStandardMaterial color={color} transparent opacity={opacity} /></mesh>
+                <mesh>
+                  <boxGeometry args={cellSize} />
+                  <meshStandardMaterial color={color} transparent opacity={opacity} />
+                </mesh>
                 <mesh position={[0, ch / 2 + 0.001, 0]}>
                   <boxGeometry args={[cw * 0.98, 0.0025, cd * 0.98]} />
                   <meshStandardMaterial
                     color={isActive ? '#16a34a' : color}
-                    transparent opacity={Math.min(1, opacity + 0.05)} roughness={0.6} metalness={0.0}
+                    transparent opacity={Math.min(1, opacity + 0.05)}
+                    roughness={0.6} metalness={0.0}
                   />
                 </mesh>
                 {label && (

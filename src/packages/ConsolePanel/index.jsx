@@ -20,8 +20,8 @@ export default function ConsolePanel({
     recording, setRecording,
     playing, setPlaying,
     mutes, setMutes,
-    recDuration, setRecDuration,     // ← bring in
-    onRecordedNote,
+    recDuration, setRecDuration,
+    onRecordedNote, // you provide this from parent to capture TonePad notes when recording
   } = recorder
 
   return (
@@ -61,7 +61,7 @@ export default function ConsolePanel({
         recording={recording} setRecording={setRecording}
         playing={playing} setPlaying={setPlaying}
         mutes={mutes} setMutes={setMutes}
-        recDuration={recDuration} setRecDuration={setRecDuration}  // ← wired
+        recDuration={recDuration} setRecDuration={setRecDuration}
       />
 
       {/* TonePad (records into current slot when recording is ON) */}

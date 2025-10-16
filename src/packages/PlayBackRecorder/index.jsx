@@ -1,18 +1,32 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 import Dial from '../../components/dial'
 import ToggleSwitch from '../../components/switch'
 import PressablePlanesButton from '../../components/button'
 import { useTonePad } from '../../hooks/useTonePad'
 import SequenceVisualizer from '../SequenceVisualizer'
+import { Text } from '@react-three/drei'
 
 function Plate({ position=[0,0,0], size=[0.16,0.06], text='', fontSize=0.022 }) {
   const [w,h] = size
   return (
     <group position={position} rotation={[-Math.PI/2,0,0]}>
-      <mesh><planeGeometry args={[w,h]} /><meshBasicMaterial color="#0f172a" transparent opacity={0.8} /></mesh>
-      <Text position={[0,0,0.001]} fontSize={fontSize} color="#cbd5e1" anchorX="center" anchorY="middle" maxWidth={w*0.95}>{text}</Text>
+      <mesh>
+        <planeGeometry args={[w,h]} />
+        <meshBasicMaterial color="#0f172a" transparent opacity={0.8} depthWrite={false} />
+      </mesh>
+      <Text
+        renderOrder={2}
+        depthTest={false}
+        position={[0,0,0.001]}
+        fontSize={fontSize}
+        color="#cbd5e1"
+        anchorX="center"
+        anchorY="middle"
+        maxWidth={w*0.95}
+      >
+        {text}
+      </Text>
     </group>
   )
 }
@@ -25,6 +39,8 @@ export default function PlayBackRecorder({
   switchBaseColor='#6987f5',
   padBaseColor='#6987f5',
   padButtonColor='#0370ff',
+
+  // State from parent
   synth,
   sequence, setSequence,
   selectedTrack, setSelectedTrack,
@@ -32,9 +48,9 @@ export default function PlayBackRecorder({
   recording, setRecording,
   playing, setPlaying,
   mutes, setMutes,
-  recDuration, setRecDuration,          // ← wired from Canvas
+  recDuration, setRecDuration,
 }) {
-  // Preview + playback synth
+  // Playback synth (plays recorded notes with their stored synth config when available)
   const { triggerNote, triggerNoteWith } = useTonePad({
     waveform: synth.waveform,
     attack: synth.attack, decay: synth.decay, sustain: synth.sustain, release: synth.release,
@@ -45,7 +61,7 @@ export default function PlayBackRecorder({
   const clamp = (v,a,b)=>Math.min(b,Math.max(a,v))
   const uniqSorted = (arr)=>[...new Set(arr)].sort((a,b)=>a-b)
 
-  // ensure seq shape once
+  // Ensure 5x16 shape once
   const ensureSeq = useCallback((seq)=>{
     if (Array.isArray(seq) && seq.length===5 && seq.every(t=>Array.isArray(t) && t.length===16)) return seq
     return Array.from({length:5},()=>Array.from({length:16},()=>[]))
@@ -55,7 +71,7 @@ export default function PlayBackRecorder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[])
 
-  // ───────── Delete ─────────
+  // Delete selected slots (guard if playing)
   const deleteSelected = useCallback(()=>{
     if (playing) return
     setSequence(prev=>{
@@ -67,10 +83,10 @@ export default function PlayBackRecorder({
     })
   },[ensureSeq, selectedTrack, selectedSlots, setSequence, playing])
 
-  // ───────── Playback Clock + Playhead (authoritative) ─────────
+  // Transport clock (single interval) + playhead (authoritative for visualizer)
   const stepRef = useRef(0)
   const timerRef = useRef(null)
-  const [playhead, setPlayhead] = useState(0)   // drives visualizer exactly
+  const [playhead, setPlayhead] = useState(0)
 
   const stopClock = useCallback(()=>{
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current=null }
@@ -81,7 +97,7 @@ export default function PlayBackRecorder({
     const ms = Math.max(30, (recDuration ?? 0.5) * 1000)
     timerRef.current = setInterval(()=>{
       const s = stepRef.current
-      setPlayhead(s)                                     // ← highlight the slot we’re about to play
+      setPlayhead(s) // highlight the slot we’re about to play
       for (let t=0;t<5;t++){
         if (mutes[t]) continue
         const events = (sequence?.[t]?.[s]) || []
@@ -101,23 +117,7 @@ export default function PlayBackRecorder({
     return stopClock
   },[playing, startClock, stopClock])
 
-  // ───────── Controls layout ─────────
-  const topRowZ = -0.32
-  const rowGapZ = 0.12
-  const firstRowZ = 0.0
-  const leftX = -0.32
-  const trackSwitches = new Array(5).fill(0).map((_, i) => ({ i, pos: [leftX + i * 0.14, 0, topRowZ] }))
-  const controlsRowZ = firstRowZ - rowGapZ
-  const playPos    = [leftX, 0, controlsRowZ]
-  const recPos     = [leftX + 0.14, 0, controlsRowZ]
-  const delPos     = [leftX + 0.28, 0, controlsRowZ]
-  const delMulPos  = [leftX + 0.42, 0, controlsRowZ]
-  const slotDialPos  = [leftX + 0.58, 0, controlsRowZ]
-  const trackDialPos = [leftX + 0.76, 0, controlsRowZ]
-  const durDialPos   = [leftX + 0.76, 0, controlsRowZ + 0.2]
-  const durLabelPos  = [durDialPos[0], durDialPos[1], durDialPos[2]-0.085]
-
-  // ───────── Delete Multiple state ─────────
+  // Delete-multiple selection state
   const [delMulti, setDelMulti] = useState(false)
   const [anchorSlot, setAnchorSlot] = useState(selectedSlots[0] ?? 0)
   const [slotDialVal, setSlotDialVal] = useState(selectedSlots[0] ?? 0)
@@ -133,7 +133,7 @@ export default function PlayBackRecorder({
     if (!delMulti && selectedSlots.length>1) setSelectedSlots([selectedSlots[0]])
   },[delMulti, selectedSlots, setSelectedSlots])
 
-  // ───────── Dials ─────────
+  // Dials
   const onSlotDial = useCallback((v)=>{
     const idx = Math.round(clamp(v,0,15))
     setSlotDialVal(idx)
@@ -151,7 +151,7 @@ export default function PlayBackRecorder({
 
   const onDurDial = useCallback((v)=>{
     const sec = Math.round(clamp(v,0.1,1.0)*100)/100
-    setRecDuration(sec)                                   // ← now updates real transport
+    setRecDuration(sec) // step length for transport
   },[setRecDuration])
 
   const prettySel = useMemo(()=>{
@@ -159,7 +159,22 @@ export default function PlayBackRecorder({
     return s.length>3 ? `${s[0]}..${s[s.length-1]} (${s.length})` : s.join(',')
   },[selectedSlots])
 
-  // ───────── Render ─────────
+  // Layout positions
+  const topRowZ = -0.32
+  const rowGapZ = 0.12
+  const firstRowZ = 0.0
+  const leftX = -0.32
+  const trackSwitches = new Array(5).fill(0).map((_, i) => ({ i, pos: [leftX + i * 0.14, 0, topRowZ] }))
+  const controlsRowZ = firstRowZ - rowGapZ
+  const playPos    = [leftX, 0, controlsRowZ]
+  const recPos     = [leftX + 0.14, 0, controlsRowZ]
+  const delPos     = [leftX + 0.28, 0, controlsRowZ]
+  const delMulPos  = [leftX + 0.42, 0, controlsRowZ]
+  const slotDialPos  = [leftX + 0.58, 0, controlsRowZ]
+  const trackDialPos = [leftX + 0.76, 0, controlsRowZ]
+  const durDialPos   = [leftX + 0.76, 0, controlsRowZ + 0.2]
+  const durLabelPos  = [durDialPos[0], durDialPos[1], durDialPos[2]-0.085]
+
   return (
     <group position={position}>
       {/* Track mute switches */}
@@ -192,7 +207,7 @@ export default function PlayBackRecorder({
         onToggle={(on)=>{ 
           if (on && recording) setRecording(false)
           const startFrom = (selectedSlots[0] ?? 0) % 16
-          if (on) { stepRef.current = startFrom; setPlayhead(startFrom) }  // ← sync visual immediately
+          if (on) { stepRef.current = startFrom; setPlayhead(startFrom) }
           setPlaying(on)
         }}
       />
@@ -255,7 +270,7 @@ export default function PlayBackRecorder({
             range={[0.1,1.0]} step={0.05} stepAngle={Math.PI/18} value={recDuration} onChange={onDurDial} />
       <Plate position={durLabelPos} text={`Step: ${Number(recDuration).toFixed(2)}s`} />
 
-      {/* ───────── Embedded Visualizer (child) ───────── */}
+      {/* Visualizer as child (controlled by playhead) */}
       <SequenceVisualizer
         sequence={sequence}
         selectedTrack={selectedTrack}
@@ -264,7 +279,6 @@ export default function PlayBackRecorder({
         playing={playing}
         mutes={mutes}
         stepSeconds={recDuration}
-        // controlled playhead keeps highlight in *exact* lockstep
         playhead={playhead}
         position={[-0.3, 0.15, -1.2]}
         rotation={[-Math.PI / 2, 0, 0]}

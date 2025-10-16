@@ -1,4 +1,3 @@
-// src/packages/TonePad.jsx
 import React, { useMemo, useCallback } from 'react'
 import { Text } from '@react-three/drei'
 import Dial from '../../components/dial'
@@ -44,9 +43,9 @@ export default function TonePad({
   padGapX = 0.14, padGapY = 0.14,
   labelOffset = [0, 0, -0.08],
   labelSize = [0.1, 0.06],
-  synth,        // parent synth state (current)
-  onChange,     // { reverbMix, reverbRoomSize, octave } patcher
-  onNote,       // (midi) => void  // NEW: notify recorder while recording
+  synth,
+  onChange,
+  onNote,       // (midi) => void  // notify recorder
 }) {
   const {
     waveform, attack, decay, sustain, release,
@@ -77,7 +76,7 @@ export default function TonePad({
 
   const onPadPress = useCallback((midi) => {
     triggerNote(midi, duration)
-    onNote?.(midi) // notify recorder if recording is on
+    onNote?.(midi)
   }, [triggerNote, duration, onNote])
 
   // Dial positions (relative to leftOrigin)

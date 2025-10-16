@@ -1,4 +1,3 @@
-// controls/WaveTypeSelector.jsx
 import React, { useMemo } from 'react'
 import PressablePlanesButton from '../../components/button'
 
@@ -6,7 +5,7 @@ const WAVES = ['sine', 'triangle', 'sawtooth', 'square']
 
 export default function WaveTypeSelector({
   position = [0, 1, -0.5],
-  spacing = 0.18,            // distance between buttons along -Z
+  spacing = 0.18,
   size = [0.12, 0.12],
   buttonScale = 0.6,
   onChange = () => {},
@@ -30,16 +29,10 @@ export default function WaveTypeSelector({
           showLabel
           label={wave}
           labelColor="#ffffff"
-          // Guard: only toggle when actually pressed to bottom once
-          requireBottomForToggle={true}
+          requireBottomForToggle
           activationThreshold={0.95}
-          // Controlled toggle state:
           controlledIsOn={isOn}
-          onToggle={(next) => {
-            // Only fire a change if the user is turning this one on.
-            if (next) onChange(wave)
-          }}
-          // Colors tuned for selector look (optional overrides)
+          onToggle={(next) => { if (next) onChange(wave) }}
           baseColor="#324966"
           buttonColor="#2563eb"
         />
