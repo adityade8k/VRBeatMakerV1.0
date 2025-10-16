@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { XR } from '@react-three/xr'
 import ConsolePanel from '../../packages/ConsolePanel'
-import BitmapTextProvider from '../bitmapText/BitmapTextProvider'
+import BitmapTextProvider from '../bitmapText/BitmapTextProvider.jsx'
 
 const makeEmptySeq = () => Array.from({ length: 5 }, () => Array.from({ length: 16 }, () => []))
 
