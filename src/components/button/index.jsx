@@ -1,5 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { Interactive } from '@react-three/xr'
 import * as THREE from 'three'
 import BitmapText from '../bitmapText'
 
@@ -42,9 +43,9 @@ export default function PressablePlanesButton({
   const btnMatRef = useRef()
 
   const [isPressed, setIsPressed] = useState(false)
-  const [armed, setArmed] = useState(false)           // true once activation threshold hit (per press)
+  const [armed, setArmed] = useState(false)           // set true once activation threshold hit
   const [isOn, setIsOn] = useState(false)             // uncontrolled toggle state
-  const committedPressRef = useRef(false)             // set true once this press reached the bottom/threshold
+  const committedPressRef = useRef(false)             // true once this press reached the bottom/threshold
 
   // Travel positions
   const initialY = useRef(gap)
@@ -101,10 +102,9 @@ export default function PressablePlanesButton({
     if (!isPressed && armed) setArmed(false)
   })
 
-  // ——— Pointer handlers (attached ONLY to the small button plate) ———
+  // — desktop pointer handlers (kept on the small plate only)
   const handlePointerDown = (e) => {
     e.stopPropagation()
-    // Only react to primary pointer
     if ('buttons' in e && e.buttons !== 1) return
     e.target.setPointerCapture?.(e.pointerId)
     committedPressRef.current = false
@@ -123,15 +123,13 @@ export default function PressablePlanesButton({
       const canToggle = !requireBottomForToggle || committedPressRef.current
       if (canToggle) {
         const next = !(controlledIsOn ?? isOn)
-        if (controlledIsOn !== undefined) onToggle(next)        // controlled
-        else { setIsOn(next); onToggle(next) }                  // uncontrolled
+        if (controlledIsOn !== undefined) onToggle(next)
+        else { setIsOn(next); onToggle(next) }
       }
     }
     committedPressRef.current = false
   }
 
-  // Prevent accidental toggles when just “near” the control:
-  // We do NOT attach handlers on the outer group or the base plate.
   const handlePointerCancel = (e) => {
     e.stopPropagation()
     try { e.target.releasePointerCapture?.(e.pointerId) } catch {}
@@ -140,7 +138,11 @@ export default function PressablePlanesButton({
     if (mode === 'long-press') onPressUp()
   }
 
-  // Geometry args (declarative → R3F owns and disposes)
+  // XR handlers simply call the same logic
+  const xrDown = (e) => handlePointerDown(e.nativeEvent ?? e)
+  const xrUp   = (e) => handlePointerUp(e.nativeEvent ?? e)
+
+  // Geometry args (declarative → R3F owns/auto-disposes)
   const basePlaneArgs = useMemo(() => [size[0], size[1]], [size])
   const btnPlaneArgs  = useMemo(() => [size[0] * buttonScale, size[1] * buttonScale], [size, buttonScale])
 
@@ -150,7 +152,7 @@ export default function PressablePlanesButton({
   return (
     <group position={position} rotation={rotation} scale={scale}>
       <Suspense fallback={null}>
-        {/* Base plate (no pointer handlers here to avoid near-trigger) */}
+        {/* Base plate (no handlers → no near-miss triggers) */}
         <mesh ref={baseRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={basePlaneArgs} />
           <meshStandardMaterial
@@ -163,36 +165,38 @@ export default function PressablePlanesButton({
           />
         </mesh>
 
-        {/* Button plate (all pointer handlers here) */}
-        <mesh
-          ref={btnRef}
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[0, initialY.current, 0]}
-          castShadow
-          onPointerDown={handlePointerDown}
-          onPointerUp={handlePointerUp}
-          onPointerOut={handlePointerCancel}
-          onPointerCancel={handlePointerCancel}
-        >
-          <planeGeometry args={btnPlaneArgs} />
-          <meshStandardMaterial ref={btnMatRef} metalness={0.2} roughness={0.4} color={cBtnStart} />
+        {/* Button plate */}
+        <Interactive onSelectStart={xrDown} onSelectEnd={xrUp}>
+          <mesh
+            ref={btnRef}
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[0, initialY.current, 0]}
+            castShadow
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerOut={handlePointerCancel}
+            onPointerCancel={handlePointerCancel}
+          >
+            <planeGeometry args={btnPlaneArgs} />
+            <meshStandardMaterial ref={btnMatRef} metalness={0.2} roughness={0.4} color={cBtnStart} />
 
-          {/* Label (bitmap) */}
-          {showLabel && label && (
-            <group position={[0, 0, labelYOffset]}>
-              <BitmapText
-                text={label}
-                position={[0, 0, 0.001]}
-                rotation={[Math.PI, 0, 0]}
-                scale={[labelFontW, labelFontW, labelFontW]}
-                color={labelColor}
-                align="center"
-                anchorY="middle"
-                maxWidth={size[0] * buttonScale * 0.9}
-              />
-            </group>
-          )}
-        </mesh>
+            {/* Label (bitmap) */}
+            {showLabel && label && (
+              <group position={[0, 0, labelYOffset]}>
+                <BitmapText
+                  text={label}
+                  position={[0, 0, 0.001]}
+                  rotation={[Math.PI, 0, 0]}
+                  scale={[labelFontW, labelFontW, labelFontW]}
+                  color={labelColor}
+                  align="center"
+                  anchorY="middle"
+                  maxWidth={size[0] * buttonScale * 0.9}
+                />
+              </group>
+            )}
+          </mesh>
+        </Interactive>
       </Suspense>
     </group>
   )

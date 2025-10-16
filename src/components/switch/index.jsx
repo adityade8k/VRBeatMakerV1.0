@@ -1,12 +1,12 @@
 // switch/ToggleSwitch.jsx
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { Interactive } from '@react-three/xr'
 import * as THREE from 'three'
 
 /**
  * ToggleSwitch with proximity snapping.
- * - Snaps to ON/OFF when within `snapThreshold` radians of the target angle while dragging.
- * - Emits onToggle immediately when snapping occurs (debounced).
+ * - Works with mouse (pointer events) and WebXR controllers (Interactive).
  */
 export default function ToggleSwitch({
   // Outer transform
@@ -79,19 +79,27 @@ export default function ToggleSwitch({
     return tmp.z
   }
 
-  // Pointer events on the knob only (prevents near-miss triggers)
+  // Normalize XR/Pointer event to a world point, when available
+  const eventPoint = (e) =>
+    (e?.nativeEvent?.point) ??
+    (e?.point) ??
+    (e?.intersection?.point) ??
+    null
+
+  // Pointer/XR events on the knob only (prevents near-miss triggers)
   const onDown = (e) => {
-    e.stopPropagation()
+    e.stopPropagation?.()
     if ('buttons' in e && e.buttons !== 1) return
-    e.target.setPointerCapture?.(e.pointerId)
+    e.target?.setPointerCapture?.(e.pointerId)
     dragging.current = true
     startAngle.current = currentAngle.current
-    startLocalZ.current = toLocalZ(e.point)
+    const p = eventPoint(e)
+    if (p) startLocalZ.current = toLocalZ(p)
   }
 
   const onUp = (e) => {
-    e.stopPropagation()
-    e.target.releasePointerCapture?.(e.pointerId)
+    e.stopPropagation?.()
+    e.target?.releasePointerCapture?.(e.pointerId)
     dragging.current = false
 
     // If we didn't already snap while dragging, snap now to closest state
@@ -102,8 +110,10 @@ export default function ToggleSwitch({
 
   const onMove = (e) => {
     if (!dragging.current) return
-    e.stopPropagation()
-    const z = toLocalZ(e.point)
+    e.stopPropagation?.()
+    const p = eventPoint(e)
+    if (!p) return
+    const z = toLocalZ(p)
     const dz = z - startLocalZ.current
 
     // Desired angle while dragging
@@ -145,7 +155,7 @@ export default function ToggleSwitch({
     lastEmittedOn.current = isOn
   }, [isOn, tiltOn, tiltOff])
 
-  // Declarative geometry args → R3F owns disposal (no <primitive />)
+  // Declarative geometry args → R3F owns disposal
   const basePlaneArgs = useMemo(() => [size[0], size[1]], [size])
   const stemCylArgs   = useMemo(() => [stemRadius, stemRadius, stemHeight, 24], [stemRadius, stemHeight])
   const knobSphereArgs= useMemo(() => [knobRadius, 24, 16], [knobRadius])
@@ -161,25 +171,31 @@ export default function ToggleSwitch({
 
         {/* Hinge at stem base (on top of plate) */}
         <group ref={hingeRef} position={[0, 0, 0]}>
-          {/* Stem (centered, lifted so base sits at hinge) */}
+          {/* Stem */}
           <mesh position={[0, stemHeight / 2, 0]} castShadow>
             <cylinderGeometry args={stemCylArgs} />
             <meshStandardMaterial color={stemColor} metalness={0.2} roughness={0.6} />
           </mesh>
 
-          {/* Knob with pointer interaction */}
-          <mesh
-            position={[0, stemHeight + knobRadius, 0]}
-            castShadow
-            onPointerDown={onDown}
-            onPointerUp={onUp}
-            onPointerCancel={onUp}
-            onPointerOut={onUp}
-            onPointerMove={onMove}
+          {/* Knob (desktop + XR) */}
+          <Interactive
+            onSelectStart={(e) => onDown(e.nativeEvent ?? e)}
+            onSelectEnd={(e) => onUp(e.nativeEvent ?? e)}
+            onMove={(e) => onMove(e.nativeEvent ?? e)}
           >
-            <sphereGeometry args={knobSphereArgs} />
-            <meshStandardMaterial color={knobColor} metalness={0.1} roughness={0.4} />
-          </mesh>
+            <mesh
+              position={[0, stemHeight + knobRadius, 0]}
+              castShadow
+              onPointerDown={onDown}
+              onPointerUp={onUp}
+              onPointerCancel={onUp}
+              onPointerOut={onUp}
+              onPointerMove={onMove}
+            >
+              <sphereGeometry args={knobSphereArgs} />
+              <meshStandardMaterial color={knobColor} metalness={0.1} roughness={0.4} />
+            </mesh>
+          </Interactive>
         </group>
       </Suspense>
     </group>

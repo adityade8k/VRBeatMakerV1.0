@@ -1,18 +1,12 @@
 // src/components/roller.jsx
 import { useRef, useEffect, useMemo, useCallback, useState } from 'react'
+import { Interactive } from '@react-three/xr'
 import * as THREE from 'three'
 
 /**
  * Roller (stepped)
- * Props:
- * - position, rotation, scale
- * - size=[w,h]; baseColor, diskColor
- * - range=[min,max], step (value tick), stepAngle (visual)
- * - value (number), onChange(number)
- *
- * Behavior:
- * - Drag forward/back (local Z) to rotate the disk.
- * - Emits stepped values; only one change per step crossing.
+ * - Desktop: vertical pixel drag.
+ * - XR: controller ray drag using intersection local-Z delta.
  */
 export default function Roller({
   position=[0,1,-0.6],
@@ -35,9 +29,13 @@ export default function Roller({
   const groupRef = useRef()
   const diskRef  = useRef()
   const pressedRef = useRef(false)
-  const startZRef  = useRef(0)
-  const startValRef= useRef(value)
-  const tmpV3Ref   = useRef(new THREE.Vector3())
+
+  // desktop drag (pixels)
+  const startZPixelRef  = useRef(0)
+
+  // XR drag (local-Z)
+  const startLocalZRef  = useRef(0)
+  const tmpV3Ref = useRef(new THREE.Vector3())
 
   const clamp = useCallback((v, a, b)=>Math.max(a, Math.min(b, v)), [])
   const snap  = useCallback((v)=>{
@@ -73,27 +71,56 @@ export default function Roller({
     }
   }, [angle])
 
-  const onPointerDown = useCallback((e)=>{
-    e.stopPropagation()
+  // helpers
+  const toLocalZ = useCallback((worldPoint)=>{
+    const tmp = tmpV3Ref.current
+    tmp.copy(worldPoint)
+    groupRef.current?.worldToLocal(tmp)
+    return tmp.z
+  }, [])
+
+  const eventPoint = (e) =>
+    (e?.nativeEvent?.point) ??
+    (e?.point) ??
+    (e?.intersection?.point) ??
+    null
+
+  const startValRef= useRef(value)
+
+  const beginDrag = useCallback((e)=>{
     pressedRef.current = true
-    startZRef.current = e.clientY ?? e.pointer?.y ?? 0 // use vertical motion to avoid camera-parallax confusion
     startValRef.current = value
-    e.target.setPointerCapture?.(e.pointerId)
-  }, [value])
 
-  const onPointerMove = useCallback((e)=>{
+    if ('clientY' in (e ?? {})) startZPixelRef.current = e.clientY ?? 0
+
+    const p = eventPoint(e)
+    if (p) startLocalZRef.current = toLocalZ(p)
+  }, [value, toLocalZ])
+
+  const dragMove = useCallback((e)=>{
     if (!pressedRef.current) return
-    const z = e.clientY ?? e.pointer?.y ?? 0
-    const dz = (startZRef.current - z) / 220 // pixels → value
-    const span = range[1]-range[0]
-    const next = snap(startValRef.current + dz * span * 0.25) // feel factor
+    let next = startValRef.current
+
+    const p = eventPoint(e)
+    if (p) {
+      // XR: use local-Z delta
+      const z = toLocalZ(p)
+      const dz = (startLocalZRef.current - z) // forward drag increases value
+      const span = range[1]-range[0]
+      next = snap(startValRef.current + dz * span * 0.6) // tune feel factor
+    } else if ('clientY' in (e ?? {})) {
+      // Desktop: vertical pixel delta
+      const y = e.clientY ?? 0
+      const dz = (startZPixelRef.current - y) / 220
+      const span = range[1]-range[0]
+      next = snap(startValRef.current + dz * span * 0.25)
+    }
+
     if (next !== value) onChange(next)
-  }, [onChange, snap, value, range])
+  }, [onChange, snap, value, range, toLocalZ])
 
-  const onPointerUp = useCallback((e)=>{
-    if (!pressedRef.current) return
+  const endDrag = useCallback((e)=>{
     pressedRef.current = false
-    e.target.releasePointerCapture?.(e.pointerId)
   }, [])
 
   const planeArgs = useMemo(()=>[size[0], size[1]], [size])
@@ -110,22 +137,28 @@ export default function Roller({
       </mesh>
 
       {/* Disk that spins around X */}
-      <mesh ref={diskRef} position={[0, diskThickness*0.5 + 0.001, 0]} rotation={[0,0,Math.PI/2]}>
+      <mesh ref={diskRef} position={[0, diskThickness*0.5 + 0.001, 0]}>
         <cylinderGeometry args={cylArgs} />
         <meshStandardMaterial color={diskColor} metalness={0.1} roughness={0.5} />
       </mesh>
 
-      {/* Interaction catcher */}
-      <mesh
-        position={[0, diskThickness*0.6, 0]}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+      {/* Interaction catcher (desktop + XR) */}
+      <Interactive
+        onSelectStart={(e)=>{ beginDrag(e.nativeEvent ?? e) }}
+        onSelectEnd={(e)=>{ endDrag(e.nativeEvent ?? e) }}
+        onMove={(e)=>{ dragMove(e.nativeEvent ?? e) }}
       >
-        <cylinderGeometry args={[size[0]*0.5, size[0]*0.5, diskThickness*2, 8]} />
-        <meshBasicMaterial transparent opacity={0} />
-      </mesh>
+        <mesh
+          position={[0, diskThickness*0.6, 0]}
+          onPointerDown={(e)=>{ e.stopPropagation(); beginDrag(e) }}
+          onPointerMove={(e)=>{ e.stopPropagation(); dragMove(e) }}
+          onPointerUp={(e)=>{ e.stopPropagation(); endDrag(e) }}
+          onPointerCancel={(e)=>{ e.stopPropagation(); endDrag(e) }}
+        >
+          <cylinderGeometry args={[size[0]*0.5, size[0]*0.5, diskThickness*2, 8]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+      </Interactive>
     </group>
   )
 }
