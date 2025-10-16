@@ -38,10 +38,10 @@ export default function ADSRController({
   infoText = '#000000',
   infoFontSize = 0.025,
 }) {
-  const A_pos = [-gridSpacingX * 0.5, 0, 0]
-  const D_pos = [ gridSpacingX * 0.5, 0, 0]
-  const S_pos = [-gridSpacingX * 0.5, 0, -gridSpacingZ]
-  const R_pos = [ gridSpacingX * 0.5, 0, -gridSpacingZ]
+  const A_pos = [-gridSpacingX * 0.5, 0, -gridSpacingZ]
+  const D_pos = [ gridSpacingX * 0.5, 0, -gridSpacingZ]
+  const S_pos = [-gridSpacingX * 0.5, 0, 0]
+  const R_pos = [ gridSpacingX * 0.5, 0, 0]
   const DialPos = [ gridSpacingX * 1.4, 0, -gridSpacingZ * 0.5]
 
   const fmtSec = (s) => `${Number.isFinite(s) ? s.toFixed(2) : '0.00'}s`
