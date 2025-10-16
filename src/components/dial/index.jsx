@@ -1,179 +1,152 @@
-// dial/Dial.jsx
-import { Suspense, useEffect, useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+// components/dial.jsx
+import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 
 /**
- * Dial: base plate (plane) + flat disk (cylinder) that rotates around +Y.
- * - Faces parallel to base; axis is +Y (default Cylinder orientation).
- * - Drag to rotate; clamp to [minAngle, maxAngle].
- * - sensitivity: scales how much rotation per pointer movement.
- * - friction: inertial decay factor (0..1) applied every frame when spinning.
- * - Emits normalized value via onValueChange in [minValue, maxValue].
+ * Step Dial
+ * - Emits exactly ONE step per pointer/ray "contact".
+ * - After a step fires, it ignores further motion until pointer leaves / is released.
+ *
+ * Props:
+ *   position, rotation, scale, size, baseColor, dialColor
+ *   range: [min, max]      // value domain
+ *   step: number           // value increment
+ *   stepAngle: number      // radians required to commit one step (default ~10°)
+ *   value: number          // controlled value in domain units (min..max)
+ *   onChange(nextValue)    // fires only when a step is committed
+ *
+ * Behavior:
+ *   - Visual rotation snaps by ±stepAngle per committed step.
+ *   - When at range limits, further steps in that direction are clamped/suppressed.
  */
 export default function Dial({
-  // Outer transform
+  // Transform
   position = [0, 1, -0.6],
   rotation = [0, 0, 0],
   scale    = [1, 1, 1],
 
-  // Base plate
-  size = [0.1, 0.1],          // width, height
-  baseColor = '#6987f5',
+  // Visuals
+  size = [0.1, 0.1],
+  baseColor = '#324966',
+  dialColor = '#f08c00',
+  dialThickness = 0.02,
+  dialSegments  = 12,
 
-  // Dial (disk)
-  dialThickness = 0.02,       // along Y
-  dialSegments  = 16,
-  dialColor     = '#f08c00',
+  // Value space
+  range = [0, 1],
+  step = 0.05,
+  stepAngle = Math.PI / 6, // ~10°
 
-  // Range + output
-  minAngle = -Math.PI * 0.75, // -135°
-  maxAngle =  Math.PI * 0.75, // +135°
-  initialAngle = 0,
-  minValue = -1,
-  maxValue =  1,
-  onValueChange = () => {},
+  // Controlled value (domain units)
+  value = 0,
 
-  // New: control feel
-  sensitivity = 0.5,          // pointer-to-angle multiplier
-  friction    = 0.1,         // 0..1 (higher = spins longer)
+  onChange = () => {},
 }) {
   const groupRef = useRef()
-  const baseRef  = useRef()
+  const baseGeo  = useMemo(() => new THREE.PlaneGeometry(size[0], size[1]), [size])
+  const radius   = useMemo(() => Math.min(size[0], size[1]) * 0.45, [size])
+  const dialGeo  = useMemo(() => new THREE.CylinderGeometry(radius, radius, dialThickness, dialSegments), [radius, dialThickness, dialSegments])
   const dialRef  = useRef()
 
-  // Geometries
-  const baseGeo = useMemo(
-    () => new THREE.PlaneGeometry(size[0], size[1]),
-    [size]
-  )
-  const dialRadius = useMemo(
-    () => Math.min(size[0], size[1]) * 0.45,
-    [size]
-  )
-  const dialGeo = useMemo(
-    () => new THREE.CylinderGeometry(dialRadius, dialRadius, dialThickness, dialSegments),
-    [dialRadius, dialThickness, dialSegments]
-  )
+  // interaction refs
+  const isActive    = useRef(false)       // pointer is down / ray is captured
+  const locked      = useRef(false)       // one step already fired for this contact
+  const startAngle  = useRef(0)           // angle when contact begins (for visual snap baseline)
+  const lastPointer = useRef(0)           // last pointer polar angle (local)
+  const accum       = useRef(0)           // accumulated delta angle since contact begin
 
-  // Drag/inertia state
-  const dragging = useRef(false)
-  const lastPointerAngle = useRef(0)   // last atan2(x, z) while dragging
-  const spinVel = useRef(0)            // angular velocity (radians/frame)
-  const lastEmitted = useRef(NaN)      // to avoid spammy onValueChange
-  const tmp = useMemo(() => new THREE.Vector3(), [])
+  const [min, max] = range
+  const clamp = (x) => Math.min(max, Math.max(min, x))
 
-  const clamp = (x, a, b) => Math.min(b, Math.max(a, x))
-  const getAngle = () => (dialRef.current?.rotation.y ?? 0)
-  const setAngle = (a) => { if (dialRef.current) dialRef.current.rotation.y = a }
-
-  const getPointerAngleLocal = (worldPoint) => {
-    // Convert world -> local (dial group space)
-    tmp.copy(worldPoint)
-    groupRef.current?.worldToLocal(tmp)
-    // Angle around Y: atan2(x, z) keeps 0 at +Z, increasing CCW
-    return Math.atan2(tmp.x, tmp.z)
+  // Keep dial's visual rotation in sync with the controlled value (discrete snapping).
+  // We rotate by (value - min)/step * stepAngle, around Y.
+  const setVisualFromValue = (v) => {
+    if (!dialRef.current) return
+    const stepsFromMin = Math.round((v - min) / step)
+    dialRef.current.rotation.y = stepsFromMin * stepAngle
   }
 
-  const emitValueFromAngle = (a) => {
-    const t = (a - minAngle) / (maxAngle - minAngle) // 0..1
-    const v = minValue + t * (maxValue - minValue)
-    if (v !== lastEmitted.current) {
-      lastEmitted.current = v
-      onValueChange(v)
-    }
+  // Sync visuals whenever value changes
+  setVisualFromValue(value)
+
+  // Helpers
+  const localAngleFromWorldPoint = (worldPoint) => {
+    const tmp = new THREE.Vector3().copy(worldPoint)
+    groupRef.current?.worldToLocal(tmp)
+    // atan2(x, z): match your previous dial math
+    return Math.atan2(tmp.x, tmp.z)
   }
 
   const onDown = (e) => {
     e.stopPropagation()
     e.target.setPointerCapture?.(e.pointerId)
-    dragging.current = true
-    lastPointerAngle.current = getPointerAngleLocal(e.point)
-    // On grab, lightly damp velocity so it feels stable
-    spinVel.current *= 0.5
+    isActive.current = true
+    locked.current = false
+    lastPointer.current = localAngleFromWorldPoint(e.point)
+    // baseline: current snapped visual
+    startAngle.current = dialRef.current?.rotation.y ?? 0
+    accum.current = 0
   }
 
-  const onUp = (e) => {
+  const onUpOrOut = (e) => {
     e.stopPropagation()
-    e.target.releasePointerCapture?.(e.pointerId)
-    dragging.current = false
+    e.target?.releasePointerCapture?.(e.pointerId)
+    isActive.current = false
+    locked.current = false
+    accum.current = 0
   }
 
   const onMove = (e) => {
-    if (!dragging.current) return
+    if (!isActive.current || locked.current) return
     e.stopPropagation()
-
-    const currentPointer = getPointerAngleLocal(e.point)
-    // Smallest signed angular delta between angles
-    let dA = currentPointer - lastPointerAngle.current
-    // Wrap to [-PI, PI] to avoid jumps across branch cut
+    const cur = localAngleFromWorldPoint(e.point)
+    let dA = cur - lastPointer.current
+    // wrap to [-PI, PI]
     dA = Math.atan2(Math.sin(dA), Math.cos(dA))
+    lastPointer.current = cur
+    accum.current += dA
 
-    lastPointerAngle.current = currentPointer
-
-    // Apply sensitivity; add to velocity for inertial feel
-    spinVel.current += dA * sensitivity
-  }
-
-  // Per-frame: integrate velocity, clamp, apply friction, emit value
-  useFrame(() => {
-    if (!dialRef.current) return
-
-    let a = getAngle()
-
-    // Integrate velocity
-    a += spinVel.current
-
-    // Clamp to limits; if we hit a boundary, reflect or zero velocity
-    if (a < minAngle) {
-      a = minAngle
-      // If still pushing outwards, kill outward component
-      if (spinVel.current < 0) spinVel.current = 0
-    } else if (a > maxAngle) {
-      a = maxAngle
-      if (spinVel.current > 0) spinVel.current = 0
+    const dir = Math.sign(accum.current)
+    if (Math.abs(accum.current) >= stepAngle && dir !== 0) {
+      // attempt a step
+      const candidate = clamp(value + dir * step)
+      if (candidate !== value) {
+        // snap visual by one step from the starting baseline
+        if (dialRef.current) {
+          const nextRot = startAngle.current + dir * stepAngle
+          dialRef.current.rotation.y = nextRot
+        }
+        locked.current = true
+        onChange(candidate)
+      } else {
+        // we're at a limit in that direction; just lock to prevent repeated firing
+        locked.current = true
+      }
     }
-
-    setAngle(a)
-    emitValueFromAngle(a)
-
-    // Friction decay
-    spinVel.current *= friction
-    if (Math.abs(spinVel.current) < 1e-5) spinVel.current = 0
-  })
-
-  useEffect(() => {
-    const a = clamp(initialAngle, minAngle, maxAngle)
-    setAngle(a)
-    emitValueFromAngle(a)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialAngle, minAngle, maxAngle, minValue, maxValue])
+  }
 
   return (
     <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
-      <Suspense fallback={null}>
-        {/* Base: face up (+Y) */}
-        <mesh ref={baseRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <primitive object={baseGeo} attach="geometry" />
-          <meshStandardMaterial color={baseColor} metalness={0.1} roughness={0.8} transparent
-            opacity={0.6}/>
-        </mesh>
+      {/* base */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <primitive object={baseGeo} attach="geometry" />
+        <meshStandardMaterial color={baseColor} metalness={0.1} roughness={0.8} transparent opacity={0.6} />
+      </mesh>
 
-        {/* Flat dial: cylinder axis along +Y → faces parallel to base */}
-        <mesh
-          ref={dialRef}
-          position={[0, dialThickness * 0.5 + 0.001, 0]} // float slightly to avoid z-fighting
-          castShadow
-          onPointerDown={onDown}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
-          onPointerOut={onUp}
-          onPointerMove={onMove}
-        >
-          <primitive object={dialGeo} attach="geometry" />
-          <meshStandardMaterial color={dialColor} metalness={0.35} roughness={0.45} />
-        </mesh>
-      </Suspense>
+      {/* dial */}
+      <mesh
+        ref={dialRef}
+        position={[0, dialThickness * 0.5 + 0.001, 0]}
+        castShadow
+        onPointerDown={onDown}
+        onPointerUp={onUpOrOut}
+        onPointerCancel={onUpOrOut}
+        onPointerOut={onUpOrOut}
+        onPointerMove={onMove}
+      >
+        <primitive object={dialGeo} attach="geometry" />
+        <meshStandardMaterial color={dialColor} metalness={0.35} roughness={0.45} />
+      </mesh>
     </group>
   )
 }
