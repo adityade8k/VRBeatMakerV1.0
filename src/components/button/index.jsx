@@ -1,7 +1,9 @@
+// components/button/index.jsx
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import BitmapText from '../bitmapText'
+import { useDisposable } from '../../hooks/useDisposable'
 
 export default function PressablePlanesButton({
   // Variant & callbacks
@@ -44,8 +46,23 @@ export default function PressablePlanesButton({
   const [isOn, setIsOn] = useState(false)
   const committedPressRef = useRef(false)
 
-  const geoBase = useMemo(() => new THREE.PlaneGeometry(size[0], size[1]), [size])
-  const geoBtn  = useMemo(() => new THREE.PlaneGeometry(size[0] * buttonScale, size[1] * buttonScale), [size, buttonScale])
+  // GEOMETRIES (auto-disposed)
+  const geoBase = useDisposable(
+    () => new THREE.PlaneGeometry(size[0], size[1]),
+    [size[0], size[1]]
+  )
+  const geoBtn = useDisposable(
+    () => new THREE.PlaneGeometry(size[0] * buttonScale, size[1] * buttonScale),
+    [size[0], size[1], buttonScale]
+  )
+
+  // Detach geometry refs on unmount to help GC
+  useEffect(() => {
+    return () => {
+      if (baseRef.current) baseRef.current.geometry = null
+      if (btnRef.current)  btnRef.current.geometry = null
+    }
+  }, [])
 
   const initialY = useRef(gap)
   const bottomY  = useRef(0.0005)
@@ -122,7 +139,6 @@ export default function PressablePlanesButton({
   }
 
   const labelFontW = useMemo(() => (size[0] * buttonScale) * labelScale, [size, buttonScale, labelScale])
-  const maxChars = Math.max(1, Math.floor((size[0] * buttonScale * 0.9) / labelFontW))
 
   return (
     <group
@@ -136,8 +152,12 @@ export default function PressablePlanesButton({
     >
       <Suspense fallback={null}>
         {/* Base plate */}
-        <mesh ref={baseRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <primitive object={geoBase} attach="geometry" />
+        <mesh
+          ref={baseRef}
+          rotation={[-Math.PI / 2, 0, 0]}
+          receiveShadow
+          geometry={geoBase}
+        >
           <meshStandardMaterial
             ref={baseMatRef}
             color={mode === 'toggle' ? (displayIsOn ? cBaseOn : cBaseOff) : cBaseLongPress}
@@ -145,27 +165,33 @@ export default function PressablePlanesButton({
             roughness={0.8}
             transparent
             opacity={0.6}
+            // If you need XR hits from both sides, uncomment:
+            // side={THREE.DoubleSide}
           />
         </mesh>
 
         {/* Button plate */}
-        <mesh ref={btnRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, initialY.current, 0]} castShadow>
-          <primitive object={geoBtn} attach="geometry" />
+        <mesh
+          ref={btnRef}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, initialY.current, 0]}
+          castShadow
+          geometry={geoBtn}
+        >
           <meshStandardMaterial ref={btnMatRef} metalness={0.2} roughness={0.4} color={cBtnStart} />
 
-          {/* Label (bitmap) — sits just above the button plane; no extra rotation needed */}
+          {/* Label (bitmap) — sits just above the button plane */}
           {showLabel && label && (
             <group position={[0, 0, labelYOffset]}>
               <BitmapText
                 text={label}
-                // leave at (0,0,0) — we center via align
                 position={[0, 0, 0.001]}
                 rotation={[Math.PI, 0, 0]}
                 scale={[labelFontW, labelFontW, labelFontW]}
                 color={labelColor}
                 align="center"
                 anchorY="middle"
-                maxWidth={Math.max(1, Math.floor((size[0] * buttonScale * 0.9) / labelFontW))}
+                maxWidth={(size[0] * buttonScale * 0.9) / labelFontW}
               />
             </group>
           )}

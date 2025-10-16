@@ -102,10 +102,10 @@ export default function SequenceVisualizer({
 
             return (
               <group key={`cell-${r}-${c}`} position={[x, 0, z]}>
-                <mesh>
+                {/* <mesh>
                   <boxGeometry args={cellSize} />
                   <meshStandardMaterial color={color} transparent opacity={opacity} />
-                </mesh>
+                </mesh> */}
                 <mesh position={[0, ch / 2 + 0.001, 0]}>
                   <boxGeometry args={[cw * 0.98, 0.0025, cd * 0.98]} />
                   <meshStandardMaterial
@@ -118,7 +118,7 @@ export default function SequenceVisualizer({
                 {label && (
                   <BitmapText
                     text={label}
-                    position={[0, -0.05, 0]}
+                    position={[0, -0.005, 0]}
                     rotation={[-Math.PI / 2, 0, 0]}
                     scale={[0.028, 0.028, 0.028]}
                     color="#0f172a"

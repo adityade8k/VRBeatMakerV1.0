@@ -1,6 +1,7 @@
 // components/roller.jsx
-import { useMemo, useRef, useEffect } from 'react'
+import { useRef, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
+import { useDisposable } from '../../hooks/useDisposable'// adjust path if using alias like '@/hooks/useDisposable'
 
 /**
  * Step Roller (axis = X, faces ∥ YZ, spin around X via local Z motion)
@@ -10,10 +11,10 @@ export default function Roller({
   // Transform
   position = [0, 1, -0.6],
   rotation = [0, 0, 0],
-  scale    = [1, 1, 1],
+  scale = [1, 1, 1],
 
   // Visuals
-  size = [0.1, 0.1],          // base plane size (lies on XZ)
+  size = [0.1, 0.1],
   baseColor = '#324966',
   diskColor = '#fc45c8',
   diskThickness = 0.035,
@@ -22,53 +23,66 @@ export default function Roller({
   // Value space
   range = [0, 1],
   step = 0.05,
-  stepAngle = Math.PI / 4.5,   // ~10°
+  stepAngle = Math.PI / 4.5, // ~10°
 
   // Controlled value
   value = 0,
 
   onChange = () => {},
 }) {
-  const groupRef     = useRef()  // whole control
-  const wheelSpinRef = useRef()  // ROTATES AROUND X (parent)
-  const wheelPoseRef = useRef()  // child: fixes cylinder axis -> X (faces ∥ YZ)
+  const groupRef = useRef()
+  const wheelSpinRef = useRef()
+  const wheelPoseRef = useRef()
 
-  const baseGeo = useMemo(() => new THREE.PlaneGeometry(size[0], size[1]), [size])
-  const radius  = useMemo(() => Math.min(size[0], size[1]) * 0.45, [size])
-  const diskGeo = useMemo(
+  // ✅ Use disposable geometries (auto-dispose + clean on unmount)
+  const baseGeo = useDisposable(
+    () => new THREE.PlaneGeometry(size[0], size[1]),
+    [size[0], size[1]]
+  )
+
+  const radius = useMemo(() => Math.min(size[0], size[1]) * 0.45, [size])
+  const diskGeo = useDisposable(
     () => new THREE.CylinderGeometry(radius, radius, diskThickness, diskSegments),
     [radius, diskThickness, diskSegments]
   )
 
+  // Explicit cleanup for GC
+  useEffect(() => {
+    return () => {
+      if (wheelPoseRef.current) wheelPoseRef.current.geometry = null
+    }
+  }, [])
+
   // Interaction state
-  const isActive   = useRef(false)
-  const locked     = useRef(false)   // prevent repeat within same contact
-  const startAngle = useRef(0)       // wheelSpinRef.rotation.x at contact begin
-  const lastZ      = useRef(0)       // last local Z
-  const accum      = useRef(0)       // accumulated implied angle
+  const isActive = useRef(false)
+  const locked = useRef(false)
+  const startAngle = useRef(0)
+  const lastZ = useRef(0)
+  const accum = useRef(0)
 
   const [min, max] = range
   const clamp = (x) => Math.min(max, Math.max(min, x))
 
-  // Child pose: turn default Y-axis cylinder so its axis becomes X (faces ∥ YZ)
+  // Rotate the wheel to align cylinder’s axis to X
   useEffect(() => {
     if (wheelPoseRef.current) wheelPoseRef.current.rotation.set(0, 0, Math.PI / 2)
   }, [])
 
-  // Keep visual spin in sync with controlled value (apply on wheelSpinRef.rotation.x)
+  // Keep wheel spin synced to controlled value
   useEffect(() => {
     if (!wheelSpinRef.current) return
     const stepsFromMin = Math.round((value - min) / step)
     wheelSpinRef.current.rotation.x = stepsFromMin * stepAngle
   }, [value, min, step, stepAngle])
 
-  // World → local Z in control space
+  // World → local Z conversion
   const toLocalZ = (worldPoint) => {
     const tmp = new THREE.Vector3().copy(worldPoint)
     groupRef.current?.worldToLocal(tmp)
     return tmp.z
   }
 
+  // Pointer interactions
   const onDown = (e) => {
     e.stopPropagation()
     e.target.setPointerCapture?.(e.pointerId)
@@ -91,11 +105,11 @@ export default function Roller({
     if (!isActive.current || locked.current) return
     e.stopPropagation()
 
-    const z  = toLocalZ(e.point)
+    const z = toLocalZ(e.point)
     const dz = z - lastZ.current
     lastZ.current = z
 
-    // Forward/back (local Z) → implied wheel angle (θ ≈ dz / r)
+    // Approximate wheel rotation based on Z motion
     const dTheta = dz / Math.max(radius, 1e-4)
     accum.current += dTheta
 
@@ -103,34 +117,32 @@ export default function Roller({
     if (Math.abs(accum.current) >= stepAngle && dir !== 0) {
       const candidate = clamp(value + dir * step)
       if (candidate !== value) {
-        // Snap one tick from baseline around X
         if (wheelSpinRef.current) {
-          const nextRot = startAngle.current + dir * stepAngle
-          wheelSpinRef.current.rotation.x = nextRot
+          wheelSpinRef.current.rotation.x = startAngle.current + dir * stepAngle
         }
         locked.current = true
         onChange(candidate)
       } else {
-        locked.current = true // at domain limit; suppress repeats
+        locked.current = true
       }
     }
   }
 
   return (
     <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
-      {/* base on XZ plane */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <primitive object={baseGeo} attach="geometry" />
+      {/* Base plane */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow geometry={baseGeo}>
         <meshStandardMaterial
           color={baseColor}
           metalness={0.1}
           roughness={0.8}
           transparent
           opacity={0.6}
+          // side={THREE.DoubleSide} // uncomment if you need backface hits in VR
         />
       </mesh>
 
-      {/* Spin first (around X), then pose the cylinder so faces ∥ YZ */}
+      {/* Roller wheel */}
       <group
         ref={wheelSpinRef}
         position={[0, diskThickness * 0.5 + 0.001, 0]}
@@ -141,8 +153,7 @@ export default function Roller({
         onPointerMove={onMove}
       >
         <group ref={wheelPoseRef}>
-          <mesh castShadow>
-            <primitive object={diskGeo} attach="geometry" />
+          <mesh castShadow geometry={diskGeo}>
             <meshStandardMaterial color={diskColor} metalness={0.3} roughness={0.4} />
           </mesh>
         </group>

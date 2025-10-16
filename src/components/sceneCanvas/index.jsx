@@ -36,25 +36,33 @@ export default function SceneCanvas({ store }) {
 
   // capture notes from TonePad while recording
   const onRecordedNote = useCallback((midi) => {
-    if (!recording) return
-    setSequence(prev => {
-      const next = prev.map(tr => tr.map(sl => [...sl]))
-      const t = Math.max(0, Math.min(4, selectedTrack))
-      const s = Math.max(0, Math.min(15, selectedSlots[0] ?? 0))
-      next[t][s] = [...(next[t][s] ?? []), {
-        midi,
-        duration: synth.duration ?? 0.5,
-        synth: {
-          waveform: synth.waveform,
-          attack: synth.attack, decay: synth.decay, sustain: synth.sustain, release: synth.release,
-          reverbMix: synth.reverbMix, reverbRoomSize: synth.reverbRoomSize,
-          cleanupEps: synth.cleanupEps ?? 0.03
-        }
-      }]
-      return next
-    })
-    setSelectedSlots(([s0 = 0]) => [(s0 + 1) % 16])
-  }, [recording, selectedTrack, selectedSlots, synth])
+  if (!recording) return
+  setSequence(prev => {
+    // clone (shallow) to preserve immutability
+    const next = prev.map(tr => tr.map(sl => Array.isArray(sl) ? [...sl] : []))
+
+    const t = Math.max(0, Math.min(4, selectedTrack))
+    const s = Math.max(0, Math.min(15, selectedSlots[0] ?? 0))
+
+    const newNote = {
+      midi,
+      duration: synth.duration ?? 0.5,
+      synth: {
+        waveform: synth.waveform,
+        attack: synth.attack, decay: synth.decay, sustain: synth.sustain, release: synth.release,
+        reverbMix: synth.reverbMix, reverbRoomSize: synth.reverbRoomSize,
+        cleanupEps: synth.cleanupEps ?? 0.03
+      }
+    }
+
+    // ✅ OVERWRITE the slot with exactly one note
+    next[t][s] = [newNote]
+
+    return next
+  })
+  // advance selection
+  setSelectedSlots(([s0 = 0]) => [(s0 + 1) % 16])
+}, [recording, selectedTrack, selectedSlots, synth])
 
   const recorder = useMemo(() => ({
     sequence, setSequence,
@@ -74,13 +82,14 @@ export default function SceneCanvas({ store }) {
   return (
     <Canvas dpr={[1, 2]} camera={{ position: [0, 1.2, 2.2], fov: 60 }}>
        <BitmapTextProvider useMipmaps={false} toneMapped={false}>
-      <color attach="background" args={['#ffffff']} />
+      <color attach="background" args={['#000000']} />
       <XR store={store}>
         <ambientLight intensity={0.8} />
         <directionalLight position={[2, 3, 1]} intensity={0.9} />
         <ConsolePanel
           rotation={[0, 0, 0]}
           position={[-0.55, 0.8, -0.35]}
+          // position={[-0.5, 0.6, 1.7]}
           scale={0.8}
           synth={synthParams}
           onWaveChange={setWaveform}
