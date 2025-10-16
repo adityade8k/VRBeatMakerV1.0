@@ -1,20 +1,13 @@
 // components/dial.jsx
 import { useMemo, useRef, useEffect } from 'react'
 import * as THREE from 'three'
-import { useDisposable } from '../../hooks/useDisposable' // adjust if you use an alias like '@/hooks/useDisposable'
+import { useDisposable } from '../../hooks/useDisposable' // adjust alias if needed
 
 /**
- * Step Dial
- * - Emits exactly ONE step per pointer/ray "contact".
- * - After a step fires, it ignores further motion until pointer leaves / is released.
- *
- * Props:
- *   position, rotation, scale, size, baseColor, dialColor
- *   range: [min, max]      // value domain
- *   step: number           // value increment
- *   stepAngle: number      // radians required to commit one step
- *   value: number          // controlled value in domain units (min..max)
- *   onChange(nextValue)    // fires only when a step is committed
+ * Continuous, WRAPPING Dial (spin around Y)
+ * - Drag in a circular motion; emits continuous values (no stepping).
+ * - When wrap=true (default): crossing maxAngle jumps to minAngle, and vice-versa.
+ * - Value ↔ angle mapping is linear within the sweep and wraps.
  */
 export default function Dial({
   // Transform
@@ -31,8 +24,13 @@ export default function Dial({
 
   // Value space
   range = [0, 1],
-  step = 0.05,
-  stepAngle = Math.PI / 6, // ~30°
+
+  // Angular limits for the knob sweep
+  minAngle = -Math.PI * 0.75,
+  maxAngle =  Math.PI * 0.75,
+
+  // Behavior
+  wrap = true, // <-- NEW: wrap within [minAngle, maxAngle]
 
   // Controlled value (domain units)
   value = 0,
@@ -43,93 +41,116 @@ export default function Dial({
   const dialRef  = useRef()
   const tmpVec   = useRef(new THREE.Vector3())
 
-  const [min, max] = range
-  const clamp = (x) => Math.min(max, Math.max(min, x))
+  const [minV, maxV] = range
+  const clampV = (x) => Math.min(maxV, Math.max(minV, x))
 
-  // Geometry
+  const spanA = maxAngle - minAngle
+  const spanV = maxV - minV
+  const EPS = 1e-9
+
+  // --- helpers: angle/value conversions & wrapping
+  const wrapA = (a) => {
+    if (!wrap) return Math.min(maxAngle, Math.max(minAngle, a))
+    let n = a - minAngle
+    n = ((n % spanA) + spanA) % spanA
+    return minAngle + n
+  }
+
+  const v2a = (v) => {
+    const t = (v - minV) / Math.max(EPS, spanV)
+    // project inside sweep (t can be outside if caller misuses value; still wrap)
+    return wrapA(minAngle + t * spanA)
+  }
+
+  const a2v = (a) => {
+    const aa = wrapA(a)
+    const t  = (aa - minAngle) / Math.max(EPS, spanA)
+    // wrap value into [minV, maxV]
+    const raw = minV + t * spanV
+    if (!wrap) return clampV(raw)
+    let nv = raw
+    // (value already in range since t∈[0,1], but keep symmetry with wrapA)
+    if (nv < minV) nv = maxV - ((minV - nv) % spanV)
+    if (nv > maxV) nv = minV + ((nv - minV) % spanV)
+    return nv
+  }
+
+  // Geometries (disposable)
   const baseGeo = useDisposable(
     () => new THREE.PlaneGeometry(size[0], size[1]),
     [size[0], size[1]]
   )
-  const radius = useMemo(() => Math.min(size[0], size[1]) * 0.45, [size[0], size[1]])
+  const radius = useMemo(() => Math.min(size[0], size[1]) * 0.45, [size])
   const dialGeo = useDisposable(
     () => new THREE.CylinderGeometry(radius, radius, dialThickness, dialSegments),
     [radius, dialThickness, dialSegments]
   )
 
-  // Break lingering refs on unmount to help GC
+  // GC-friendly teardown
   useEffect(() => {
     return () => {
       if (dialRef.current) dialRef.current.geometry = null
     }
   }, [])
 
-  // Keep dial's visual rotation in sync with the controlled value (discrete snapping).
+  // Keep visual in sync with controlled value
   useEffect(() => {
     if (!dialRef.current) return
-    const stepsFromMin = Math.round((value - min) / step)
-    dialRef.current.rotation.y = stepsFromMin * stepAngle
-  }, [value, min, step, stepAngle])
+    dialRef.current.rotation.y = v2a(value)
+  }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // interaction refs
-  const isActive    = useRef(false)  // pointer is down / ray is captured
-  const locked      = useRef(false)  // one step already fired for this contact
-  const startAngle  = useRef(0)      // angle when contact begins (visual baseline)
-  const lastPointer = useRef(0)      // last pointer polar angle (local)
-  const accum       = useRef(0)      // accumulated delta angle since contact begin
+  // Interaction state
+  const isActive     = useRef(false)
+  const startAngle   = useRef(0) // dial angle at pointer down (wrapped)
+  const startPointer = useRef(0) // pointer polar angle at pointer down
 
-  // Helpers
+  // helper: local polar angle from world point (around Y)
   const localAngleFromWorldPoint = (worldPoint) => {
     const v = tmpVec.current.copy(worldPoint)
     groupRef.current?.worldToLocal(v)
-    // atan2(x, z): around Y axis, consistent with visual rotation.y
+    // atan2(x, z) so that rotation.y matches positive left→right spin
     return Math.atan2(v.x, v.z)
+  }
+
+  const shortestAngularDelta = (to, from) => {
+    // wrap difference to [-π, π]
+    let d = to - from
+    d = Math.atan2(Math.sin(d), Math.cos(d))
+    return d
   }
 
   const onDown = (e) => {
     e.stopPropagation()
     e.target.setPointerCapture?.(e.pointerId)
     isActive.current = true
-    locked.current = false
-    lastPointer.current = localAngleFromWorldPoint(e.point)
-    // baseline: current snapped visual
-    startAngle.current = dialRef.current?.rotation.y ?? 0
-    accum.current = 0
+    // ensure we start from a wrapped angle for consistency
+    const current = dialRef.current?.rotation.y ?? v2a(value)
+    startAngle.current   = wrapA(current)
+    startPointer.current = localAngleFromWorldPoint(e.point)
   }
 
   const onUpOrOut = (e) => {
     e.stopPropagation()
     e.target?.releasePointerCapture?.(e.pointerId)
     isActive.current = false
-    locked.current = false
-    accum.current = 0
   }
 
   const onMove = (e) => {
-    if (!isActive.current || locked.current) return
+    if (!isActive.current) return
     e.stopPropagation()
-    const cur = localAngleFromWorldPoint(e.point)
-    let dA = cur - lastPointer.current
-    // wrap to [-PI, PI]
-    dA = Math.atan2(Math.sin(dA), Math.cos(dA))
-    lastPointer.current = cur
-    accum.current += dA
 
-    const dir = Math.sign(accum.current)
-    if (Math.abs(accum.current) >= stepAngle && dir !== 0) {
-      const candidate = clamp(value + dir * step)
-      if (candidate !== value) {
-        // snap visual by one step from the starting baseline
-        if (dialRef.current) {
-          dialRef.current.rotation.y = startAngle.current + dir * stepAngle
-        }
-        locked.current = true
-        onChange(candidate)
-      } else {
-        // at a limit in that direction; lock to prevent repeated firing
-        locked.current = true
-      }
-    }
+    const curPointer = localAngleFromWorldPoint(e.point)
+    const dA = shortestAngularDelta(curPointer, startPointer.current)
+
+    // WRAP instead of clamp
+    const newAngle = wrapA(startAngle.current + dA)
+
+    // Optimistic visual update
+    if (dialRef.current) dialRef.current.rotation.y = newAngle
+
+    // Emit continuous value (wrapped)
+    const nextV = a2v(newAngle)
+    if (nextV !== value) onChange(nextV)
   }
 
   return (
@@ -142,7 +163,6 @@ export default function Dial({
           roughness={0.8}
           transparent
           opacity={0.6}
-          // side={THREE.DoubleSide} // uncomment if you need backface hits in XR
         />
       </mesh>
 
