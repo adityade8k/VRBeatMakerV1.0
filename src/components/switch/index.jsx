@@ -2,11 +2,22 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { useDisposable } from '../../hooks/useDisposable'
 
 /**
- * ToggleSwitch with proximity snapping.
- * - Snaps to ON/OFF when within `snapThreshold` radians of the target angle while dragging.
- * - Emits onToggle immediately when snapping occurs (debounced).
+ * ToggleSwitch:
+ * - Base plate (plane) lying flat.
+ * - Upright thin cylinder (stem) + sphere knob on top.
+ * - Rotates around a hinge located at the stem base (on the plate).
+ * - Drag forward/back (local Z) to tilt; snaps to ON/OFF on release.
+ *
+ * Props:
+ *  - onToggle(isOn)
+ *  - isOn (controlled)
+ *  - defaultOn (uncontrolled)
+ *  - tiltOn/tiltOff (radians)
+ *  - sensitivity (angle per unit local-Z while dragging)
+ *  - speed (lerp)
  */
 export default function ToggleSwitch({
   // Outer transform
@@ -26,28 +37,44 @@ export default function ToggleSwitch({
   knobColor  = '#9c31ee',
 
   // Feel
-  tiltOn  =  +0.6,          // ~34°
-  tiltOff =  -0.6,          // ~-34°
-  sensitivity = 30,         // angle per unit Z (local) while dragging
-  speed = 50,               // smoothing lerp speed (higher = snappier)
+  tiltOn  =  +0.6,
+  tiltOff =  -0.6,
+  sensitivity = 30,
+  speed = 20,
 
-  // Proximity snapping
-  snapThreshold = 0.10,      // radians (~5.7°)
-  snapWhileDragging = true,  // snap as soon as you get close
-
-  // State (controlled / uncontrolled)
+  // State
   isOn: controlledOn,
   defaultOn = false,
   onToggle = () => {},
 }) {
   const groupRef  = useRef()
   const baseRef   = useRef()
+  const stemRef   = useRef()
+  const knobRef   = useRef()
   const hingeRef  = useRef()  // pivot at the stem base (rotation happens here)
 
-  // Geos
-  const baseGeo = useMemo(() => new THREE.PlaneGeometry(size[0], size[1]), [size])
-  const stemGeo = useMemo(() => new THREE.CylinderGeometry(stemRadius, stemRadius, stemHeight, 24), [stemRadius, stemHeight])
-  const knobGeo = useMemo(() => new THREE.SphereGeometry(knobRadius, 24, 16), [knobRadius])
+  // Geometries (auto-disposed on change/unmount)
+  const baseGeo = useDisposable(
+    () => new THREE.PlaneGeometry(size[0], size[1]),
+    [size[0], size[1]]
+  )
+  const stemGeo = useDisposable(
+    () => new THREE.CylinderGeometry(stemRadius, stemRadius, stemHeight, 24),
+    [stemRadius, stemHeight]
+  )
+  const knobGeo = useDisposable(
+    () => new THREE.SphereGeometry(knobRadius, 24, 16),
+    [knobRadius]
+  )
+
+  // Break lingering refs on unmount (helps GC)
+  useEffect(() => {
+    return () => {
+      if (baseRef.current) baseRef.current.geometry = null
+      if (stemRef.current) stemRef.current.geometry = null
+      if (knobRef.current) knobRef.current.geometry = null
+    }
+  }, [])
 
   // Uncontrolled fallback
   const [internalOn, setInternalOn] = useState(defaultOn)
@@ -61,30 +88,23 @@ export default function ToggleSwitch({
   const startLocalZ = useRef(0)
   const tmp = useMemo(() => new THREE.Vector3(), [])
 
-  // Debounce onToggle while snapping
-  const lastEmittedOn = useRef(isOn)
-
   // Helpers
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x))
   const midAngle = useMemo(() => 0.5 * (tiltOn + tiltOff), [tiltOn, tiltOff])
 
   const setOn = (next) => {
     if (controlledOn === undefined) setInternalOn(next)
-    // Only emit when the value actually changes
-    if (lastEmittedOn.current !== next) {
-      lastEmittedOn.current = next
-      onToggle(next)
-    }
+    onToggle(next)
   }
 
-  // world → local Z in switch group space
+  // Convert world → local Z in switch group space
   const toLocalZ = (worldPoint) => {
     tmp.copy(worldPoint)
     groupRef.current?.worldToLocal(tmp)
     return tmp.z
   }
 
-  // Pointer events on the knob
+  // Pointer events on the knob for precise grabbing
   const onDown = (e) => {
     e.stopPropagation()
     e.target.setPointerCapture?.(e.pointerId)
@@ -98,7 +118,7 @@ export default function ToggleSwitch({
     e.target.releasePointerCapture?.(e.pointerId)
     dragging.current = false
 
-    // If we didn't already snap while dragging, snap now to closest state
+    // Snap to nearest state on release
     const snapOn = currentAngle.current >= midAngle
     targetAngle.current = snapOn ? tiltOn : tiltOff
     if (snapOn !== isOn) setOn(snapOn)
@@ -111,30 +131,8 @@ export default function ToggleSwitch({
     const dz = z - startLocalZ.current
 
     // Desired angle while dragging
-    let desired = clamp(startAngle.current + dz * sensitivity, tiltOff, tiltOn)
-
-    if (snapWhileDragging) {
-      const distToOn  = Math.abs(desired - tiltOn)
-      const distToOff = Math.abs(desired - tiltOff)
-
-      if (distToOn <= snapThreshold) {
-        // Snap to ON immediately
-        desired = tiltOn
-        targetAngle.current = desired
-        if (!isOn) setOn(true)
-        return
-      }
-      if (distToOff <= snapThreshold) {
-        // Snap to OFF immediately
-        desired = tiltOff
-        targetAngle.current = desired
-        if (isOn) setOn(false)
-        return
-      }
-    }
-
-    // Otherwise follow finger/ray smoothly within bounds
-    targetAngle.current = desired
+    const desired = clamp(startAngle.current + dz * sensitivity, tiltOff, tiltOn)
+    targetAngle.current = desired // follow finger/ray
   }
 
   // Smoothly blend current → target every frame
@@ -149,37 +147,52 @@ export default function ToggleSwitch({
   // Keep target in sync if controlled state changes from outside
   useEffect(() => {
     targetAngle.current = isOn ? tiltOn : tiltOff
-    lastEmittedOn.current = isOn
   }, [isOn, tiltOn, tiltOff])
 
   return (
     <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
       <Suspense fallback={null}>
         {/* Base: face up */}
-        <mesh ref={baseRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <primitive object={baseGeo} attach="geometry" />
-          <meshStandardMaterial color={baseColor} metalness={0.1} roughness={0.8} transparent opacity={0.6} />
+        <mesh
+          ref={baseRef}
+          rotation={[-Math.PI / 2, 0, 0]}
+          receiveShadow
+          geometry={baseGeo}
+        >
+          <meshStandardMaterial
+            color={baseColor}
+            metalness={0.1}
+            roughness={0.8}
+            transparent
+            opacity={0.6}
+            // side={THREE.DoubleSide} // uncomment if you need backface hits in XR
+          />
         </mesh>
 
         {/* Hinge at stem base (on top of plate) */}
         <group ref={hingeRef} position={[0, 0, 0]}>
-          {/* Stem (centered, lifted so base sits at hinge) */}
-          <mesh position={[0, stemHeight / 2, 0]} castShadow>
-            <primitive object={stemGeo} attach="geometry" />
+          {/* Stem lifted so its base sits at the hinge */}
+          <mesh
+            ref={stemRef}
+            position={[0, stemHeight / 2, 0]}
+            castShadow
+            geometry={stemGeo}
+          >
             <meshStandardMaterial color={stemColor} metalness={0.2} roughness={0.6} />
           </mesh>
 
-          {/* Knob with pointer interaction */}
+          {/* Knob at top of stem */}
           <mesh
+            ref={knobRef}
             position={[0, stemHeight + knobRadius, 0]}
             castShadow
+            geometry={knobGeo}
             onPointerDown={onDown}
             onPointerUp={onUp}
             onPointerCancel={onUp}
             onPointerOut={onUp}
             onPointerMove={onMove}
           >
-            <primitive object={knobGeo} attach="geometry" />
             <meshStandardMaterial color={knobColor} metalness={0.1} roughness={0.4} />
           </mesh>
         </group>

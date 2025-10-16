@@ -1,30 +1,39 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 import Dial from '../../components/dial'
 import ToggleSwitch from '../../components/switch'
 import PressablePlanesButton from '../../components/button'
 import { useTonePad } from '../../hooks/useTonePad'
 import SequenceVisualizer from '../SequenceVisualizer'
+import BitmapText from '../../components/bitmapText'
 
-function Plate({ position=[0,0,0], size=[0.16,0.06], text='', fontSize=0.022 }) {
-  const [w,h] = size
+function Plate({ position = [0, 0, 0], size = [0.16, 0.06], text = '', fontSize = 0.022, color = "#000000" }) {
+  const [w, h] = size
   return (
-    <group position={position} rotation={[-Math.PI/2,0,0]}>
-      <mesh><planeGeometry args={[w,h]} /><meshBasicMaterial color="#0f172a" transparent opacity={0.8} /></mesh>
-      <Text position={[0,0,0.001]} fontSize={fontSize} color="#cbd5e1" anchorX="center" anchorY="middle" maxWidth={w*0.95}>{text}</Text>
+    <group position={position} rotation={[-Math.PI / 2, 0, 0]}>
+      <BitmapText
+        text={text}
+        position={[-w * 0.48, 0, 0.01]}
+        rotation={[Math.PI, 0, 0]}
+        scale={[fontSize, fontSize, fontSize]}
+        color={color}
+        align="left"
+        anchorY="middle"
+        maxWidth={(w * 0.95) / fontSize}
+      />
     </group>
   )
 }
 
 export default function PlayBackRecorder({
-  position=[0.28, 0.9, -0.35],
-  size=[0.09,0.09],
-  dialBaseColor='#324966',
-  dialColor='#f08c00',
-  switchBaseColor='#6987f5',
-  padBaseColor='#6987f5',
-  padButtonColor='#0370ff',
+  position = [0.28, 0.9, -0.35],
+  size = [0.09, 0.09],
+  dialBaseColor = '#324966',
+  dialColor = '#f08c00',
+  switchBaseColor = '#6987f5',
+  padBaseColor = '#6987f5',
+  padButtonColor = '#0370ff',
+
   synth,
   sequence, setSequence,
   selectedTrack, setSelectedTrack,
@@ -32,9 +41,8 @@ export default function PlayBackRecorder({
   recording, setRecording,
   playing, setPlaying,
   mutes, setMutes,
-  recDuration, setRecDuration,          // ← wired from Canvas
+  recDuration, setRecDuration,
 }) {
-  // Preview + playback synth
   const { triggerNote, triggerNoteWith } = useTonePad({
     waveform: synth.waveform,
     attack: synth.attack, decay: synth.decay, sustain: synth.sustain, release: synth.release,
@@ -42,82 +50,102 @@ export default function PlayBackRecorder({
     cleanupEps: synth.cleanupEps ?? 0.03,
   })
 
-  const clamp = (v,a,b)=>Math.min(b,Math.max(a,v))
-  const uniqSorted = (arr)=>[...new Set(arr)].sort((a,b)=>a-b)
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
+  const uniqSorted = (arr) => [...new Set(arr)].sort((a, b) => a - b)
 
-  // ensure seq shape once
-  const ensureSeq = useCallback((seq)=>{
-    if (Array.isArray(seq) && seq.length===5 && seq.every(t=>Array.isArray(t) && t.length===16)) return seq
-    return Array.from({length:5},()=>Array.from({length:16},()=>[]))
-  },[])
-  useEffect(()=>{
-    if (!sequence || sequence.length!==5) setSequence(ensureSeq(sequence))
+  const ensureSeq = useCallback((seq) => {
+    if (Array.isArray(seq) && seq.length === 5 && seq.every(t => Array.isArray(t) && t.length === 16)) return seq
+    return Array.from({ length: 5 }, () => Array.from({ length: 16 }, () => []))
+  }, [])
+  useEffect(() => {
+    if (!sequence || sequence.length !== 5) setSequence(ensureSeq(sequence))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[])
+  }, [])
 
-  // ───────── Delete ─────────
-  const deleteSelected = useCallback(()=>{
+  const deleteSelected = useCallback(() => {
     if (playing) return
-    setSequence(prev=>{
-      const base = ensureSeq(prev).map(track=>track.map(slot=>[...slot]))
-      const t = clamp(selectedTrack,0,4)
-      const targets = (selectedSlots.length?selectedSlots:[0])
-      targets.forEach(s=>{ base[t][s]=[] })
+    setSequence(prev => {
+      const base = ensureSeq(prev).map(track => track.map(slot => [...slot]))
+      const t = clamp(selectedTrack, 0, 4)
+      const targets = (selectedSlots.length ? selectedSlots : [0])
+      targets.forEach(s => { base[t][s] = [] })
       return base
     })
-  },[ensureSeq, selectedTrack, selectedSlots, setSequence, playing])
+  }, [ensureSeq, selectedTrack, selectedSlots, setSequence, playing])
 
-  // ───────── Playback Clock + Playhead (authoritative) ─────────
+  const seqRef = useRef(sequence)
+  const mutesRef = useRef(mutes)
+  const durRef = useRef(recDuration)
+
+  useEffect(() => { seqRef.current = sequence }, [sequence])
+  useEffect(() => { mutesRef.current = mutes }, [mutes])
+  useEffect(() => { durRef.current = recDuration }, [recDuration])
+
+  // Step/playhead refs
   const stepRef = useRef(0)
   const timerRef = useRef(null)
-  const [playhead, setPlayhead] = useState(0)   // drives visualizer exactly
+  const nextTickAtRef = useRef(0) // performance.now() timestamp for drift-correction
 
-  const stopClock = useCallback(()=>{
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current=null }
-  },[])
+  const [playhead, setPlayhead] = useState(0)
 
-  const startClock = useCallback(()=>{
-    stopClock()
-    const ms = Math.max(30, (recDuration ?? 0.5) * 1000)
-    timerRef.current = setInterval(()=>{
-      const s = stepRef.current
-      setPlayhead(s)                                     // ← highlight the slot we’re about to play
-      for (let t=0;t<5;t++){
-        if (mutes[t]) continue
-        const events = (sequence?.[t]?.[s]) || []
-        for (const ev of events) {
-          const evDur = ev?.duration ?? (recDuration ?? 0.5)
-          if (ev?.synth) triggerNoteWith(ev.synth, ev.midi, evDur)
-          else triggerNote(ev.midi, evDur)
-        }
+  const stopClock = useCallback(() => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
+  }, [])
+
+  const tickOnce = useCallback(() => {
+    const s = stepRef.current
+    setPlayhead(s)
+
+    const seq = seqRef.current
+    const mutes = mutesRef.current
+    const stepSec = Math.max(0.03, durRef.current ?? 0.5)
+
+    for (let t = 0; t < 5; t++) {
+      if (mutes?.[t]) continue
+      const events = (seq?.[t]?.[s]) || []
+      for (const ev of events) {
+        const midi = ev?.midi
+        if (typeof midi !== 'number') continue
+        const evDur = Number.isFinite(ev?.duration) ? ev.duration : stepSec
+        if (ev?.synth) triggerNoteWith(ev.synth, midi, evDur)
+        else triggerNote(midi, evDur)
       }
-      stepRef.current = (s+1) % 16
-    }, ms)
-  },[mutes, sequence, stopClock, triggerNote, triggerNoteWith, recDuration])
+    }
 
-  useEffect(()=>{
-    if (playing) startClock()
+    stepRef.current = (s + 1) % 16
+  }, [triggerNote, triggerNoteWith])
+
+  const scheduleNext = useCallback(() => {
+    const stepMs = Math.max(30, (durRef.current ?? 0.5) * 1000)
+    const now = performance.now()
+
+    // First schedule sets baseline
+    if (!nextTickAtRef.current) nextTickAtRef.current = now + stepMs
+    else nextTickAtRef.current += stepMs
+
+    const delay = Math.max(0, nextTickAtRef.current - now)
+    timerRef.current = setTimeout(() => {
+      tickOnce()
+      scheduleNext()  // recurse for the next step
+    }, delay)
+  }, [tickOnce])
+
+  const startClock = useCallback((startFrom) => {
+    stopClock()
+    // Align internal counters and fire FIRST tick immediately
+    stepRef.current = startFrom % 16
+    setPlayhead(stepRef.current)
+    tickOnce()            // ← this is what was missing; prevents initial “silent” step
+    nextTickAtRef.current = 0
+    scheduleNext()
+  }, [scheduleNext, stopClock, tickOnce])
+
+  useEffect(() => {
+    if (playing) startClock((selectedSlots[0] ?? 0) % 16)
     else stopClock()
     return stopClock
-  },[playing, startClock, stopClock])
+  }, [playing, selectedSlots, startClock, stopClock])
 
-  // ───────── Controls layout ─────────
-  const topRowZ = -0.32
-  const rowGapZ = 0.12
-  const firstRowZ = 0.0
-  const leftX = -0.32
-  const trackSwitches = new Array(5).fill(0).map((_, i) => ({ i, pos: [leftX + i * 0.14, 0, topRowZ] }))
-  const controlsRowZ = firstRowZ - rowGapZ
-  const playPos    = [leftX, 0, controlsRowZ]
-  const recPos     = [leftX + 0.14, 0, controlsRowZ]
-  const delPos     = [leftX + 0.28, 0, controlsRowZ]
-  const delMulPos  = [leftX + 0.42, 0, controlsRowZ]
-  const slotDialPos  = [leftX + 0.58, 0, controlsRowZ]
-  const trackDialPos = [leftX + 0.76, 0, controlsRowZ]
-  const durDialPos   = [leftX + 0.76, 0, controlsRowZ + 0.2]
-  const durLabelPos  = [durDialPos[0], durDialPos[1], durDialPos[2]-0.085]
-
-  // ───────── Delete Multiple state ─────────
   const [delMulti, setDelMulti] = useState(false)
   const [anchorSlot, setAnchorSlot] = useState(selectedSlots[0] ?? 0)
   const [slotDialVal, setSlotDialVal] = useState(selectedSlots[0] ?? 0)
@@ -129,73 +157,84 @@ export default function PlayBackRecorder({
     }
   }, [delMulti, selectedSlots])
 
-  useEffect(()=>{
-    if (!delMulti && selectedSlots.length>1) setSelectedSlots([selectedSlots[0]])
-  },[delMulti, selectedSlots, setSelectedSlots])
+  useEffect(() => {
+    if (!delMulti && selectedSlots.length > 1) setSelectedSlots([selectedSlots[0]])
+  }, [delMulti, selectedSlots, setSelectedSlots])
 
-  // ───────── Dials ─────────
-  const onSlotDial = useCallback((v)=>{
-    const idx = Math.round(clamp(v,0,15))
+  const onSlotDial = useCallback((v) => {
+    const idx = Math.round(clamp(v, 0, 15))
     setSlotDialVal(idx)
     if (delMulti) {
       const lo = Math.min(anchorSlot, idx)
       const hi = Math.max(anchorSlot, idx)
-      const range = []; for (let i=lo;i<=hi;i++) range.push(i)
+      const range = []; for (let i = lo; i <= hi; i++) range.push(i)
       setSelectedSlots(range)
     } else {
       setSelectedSlots([idx])
     }
-  },[delMulti, anchorSlot, setSelectedSlots])
+  }, [delMulti, anchorSlot, setSelectedSlots])
 
-  const onTrackDial = useCallback((v)=> setSelectedTrack(Math.round(clamp(v,0,4))), [setSelectedTrack])
+  const onTrackDial = useCallback((v) => setSelectedTrack(Math.round(clamp(v, 0, 4))), [setSelectedTrack])
 
-  const onDurDial = useCallback((v)=>{
-    const sec = Math.round(clamp(v,0.1,1.0)*100)/100
-    setRecDuration(sec)                                   // ← now updates real transport
-  },[setRecDuration])
+  const onDurDial = useCallback((v) => {
+    const sec = Math.round(clamp(v, 0.1, 1.0) * 100) / 100
+    setRecDuration(sec)
+  }, [setRecDuration])
 
-  const prettySel = useMemo(()=>{
+  const prettySel = useMemo(() => {
     const s = uniqSorted(selectedSlots)
-    return s.length>3 ? `${s[0]}..${s[s.length-1]} (${s.length})` : s.join(',')
-  },[selectedSlots])
+    return s.length > 3 ? `${s[0]}..${s[s.length - 1]} (${s.length})` : s.join(',')
+  }, [selectedSlots])
 
-  // ───────── Render ─────────
+  const topRowZ = -0.32
+  const rowGapZ = 0.12
+  const firstRowZ = 0.0
+  const leftX = -0.32
+  const trackSwitches = new Array(5).fill(0).map((_, i) => ({ i, pos: [leftX + i * 0.14, 0, topRowZ] }))
+  const controlsRowZ = firstRowZ - rowGapZ
+  const playPos = [leftX, 0, controlsRowZ]
+  const recPos = [leftX + 0.14, 0, controlsRowZ]
+  const delPos = [leftX + 0.28, 0, controlsRowZ]
+  const delMulPos = [leftX + 0.42, 0, controlsRowZ]
+  const slotDialPos = [leftX + 0.58, 0, controlsRowZ]
+  const trackDialPos = [leftX + 0.76, 0, controlsRowZ]
+  const durDialPos = [leftX + 0.76, 0, controlsRowZ + 0.2]
+  const durLabelPos = [durDialPos[0], durDialPos[1], durDialPos[2] - 0.085]
+
   return (
     <group position={position}>
-      {/* Track mute switches */}
       {trackSwitches.map(({ i, pos }) => (
         <group key={`trk-sw-${i}`} position={pos}>
           <ToggleSwitch
-            position={[0,0,0]}
+            position={[0, 0, 0]}
             size={size}
             baseColor={switchBaseColor}
             controlledIsOn={!mutes[i]}
             isOn={!mutes[i]}
-            onToggle={(on)=>{
-              const next=[...mutes]; next[i]=!on; setMutes(next)
+            onToggle={(on) => {
+              const next = [...mutes]; next[i] = !on; setMutes(next)
             }}
           />
-          <Plate position={[0, 0, -0.08]} size={[0.16,0.06]} text={`Track ${i+1} ${mutes[i]?'(muted)':''}`} />
+          <Plate position={[0, 0, -0.08]} size={[0.16, 0.06]} text={`Track ${i + 1} ${mutes[i] ? '(muted)' : ''}`} />
         </group>
       ))}
 
-      {/* Transport & edit */}
       <PressablePlanesButton
-        mode="toggle"
-        position={playPos}
-        size={size}
-        baseColor={padBaseColor}
-        buttonColor={padButtonColor}
-        showLabel
-        label={playing ? 'Pause' : 'Play'}
-        controlledIsOn={playing}
-        onToggle={(on)=>{ 
-          if (on && recording) setRecording(false)
-          const startFrom = (selectedSlots[0] ?? 0) % 16
-          if (on) { stepRef.current = startFrom; setPlayhead(startFrom) }  // ← sync visual immediately
-          setPlaying(on)
-        }}
-      />
+  mode="toggle"
+  labelColor="#000000"
+  position={playPos}
+  size={size}
+  baseColor={padBaseColor}
+  buttonColor={padButtonColor}
+  showLabel
+  label={playing ? 'Pause' : 'Play'}
+  controlledIsOn={playing}
+  onToggle={(on)=>{ 
+    if (on && recording) setRecording(false)
+    setPlaying(on) // startClock uses selectedSlots in the effect above
+  }}
+/>
+
 
       <ToggleSwitch
         position={recPos}
@@ -203,22 +242,23 @@ export default function PlayBackRecorder({
         baseColor={switchBaseColor}
         controlledIsOn={recording}
         isOn={recording}
-        onToggle={(on)=>{
+        onToggle={(on) => {
           if (on && playing) setPlaying(false)
           setRecording(on)
         }}
       />
-      <Plate position={[recPos[0],recPos[1],recPos[2]-0.08]} size={[0.18,0.06]} text={recording ? 'Recording: ON' : 'Recording: OFF'} />
+      <Plate position={[recPos[0], recPos[1], recPos[2] - 0.08]} size={[0.18, 0.06]} text={recording ? 'Recording: ON' : 'Recording: OFF'} />
 
       <PressablePlanesButton
         mode="long-press"
+        labelColor="#000000"
         position={delPos}
         size={size}
         baseColor={padBaseColor}
         buttonColor="#dc3545"
         showLabel
         label="Delete"
-        onPressed={()=>{
+        onPressed={() => {
           deleteSelected()
           if (delMulti) setDelMulti(false)
         }}
@@ -226,6 +266,7 @@ export default function PlayBackRecorder({
 
       <PressablePlanesButton
         mode="toggle"
+        labelColor="#000000"
         position={delMulPos}
         size={size}
         baseColor={padBaseColor}
@@ -241,21 +282,18 @@ export default function PlayBackRecorder({
         }}
       />
 
-      {/* Dials */}
       <Dial position={slotDialPos} size={size} baseColor={dialBaseColor} dialColor={dialColor}
-            range={[0,15]} step={1} stepAngle={Math.PI/12} value={slotDialVal} onChange={onSlotDial} />
-      <Plate position={[slotDialPos[0],slotDialPos[1],slotDialPos[2]-0.08]} text={`Slot: ${prettySel || '0'}`} />
+        range={[0, 15]} step={1} stepAngle={Math.PI / 12} value={slotDialVal} onChange={onSlotDial} />
+      <Plate position={[slotDialPos[0], slotDialPos[1], slotDialPos[2] - 0.08]} text={`Slot: ${prettySel || '0'}`} />
 
       <Dial position={trackDialPos} size={size} baseColor={dialBaseColor} dialColor={dialColor}
-            range={[0,4]} step={1} stepAngle={Math.PI/12} value={selectedTrack} onChange={onTrackDial} />
-      <Plate position={[trackDialPos[0],trackDialPos[1],trackDialPos[2]-0.08]} text={`Track: ${selectedTrack+1}`} />
+        range={[0, 4]} step={1} stepAngle={Math.PI / 12} value={selectedTrack} onChange={onTrackDial} />
+      <Plate position={[trackDialPos[0], trackDialPos[1], trackDialPos[2] - 0.08]} text={`Track: ${selectedTrack + 1}`} />
 
-      {/* Transport step (duration) */}
       <Dial position={durDialPos} size={size} baseColor={dialBaseColor} dialColor={dialColor}
-            range={[0.1,1.0]} step={0.05} stepAngle={Math.PI/18} value={recDuration} onChange={onDurDial} />
+        range={[0.1, 1.0]} step={0.05} stepAngle={Math.PI / 18} value={recDuration} onChange={onDurDial} />
       <Plate position={durLabelPos} text={`Step: ${Number(recDuration).toFixed(2)}s`} />
 
-      {/* ───────── Embedded Visualizer (child) ───────── */}
       <SequenceVisualizer
         sequence={sequence}
         selectedTrack={selectedTrack}
@@ -264,11 +302,10 @@ export default function PlayBackRecorder({
         playing={playing}
         mutes={mutes}
         stepSeconds={recDuration}
-        // controlled playhead keeps highlight in *exact* lockstep
         playhead={playhead}
-        position={[-0.3, 0.15, -1.2]}
+        position={[-0.3, 0.25, -1.2]}
         rotation={[-Math.PI / 2, 0, 0]}
-        scale={0.9}
+        scale={1.8}
       />
     </group>
   )

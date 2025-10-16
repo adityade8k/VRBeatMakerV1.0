@@ -1,30 +1,34 @@
-// src/packages/TonePad.jsx
 import React, { useMemo, useCallback } from 'react'
-import { Text } from '@react-three/drei'
 import Dial from '../../components/dial'
 import PressablePlanesButton from '../../components/button'
 import { useTonePad } from '../../hooks/useTonePad'
+import BitmapText from '../../components/bitmapText'
 
 function InfoPlate({
   position = [0, 0, 0],
+  rotation = [Math.PI, 0, 0],
   size = [0.16, 0.06],
   bg = '#0f172a',
   opacity = 0.8,
   text = '',
-  textColor = '#cbd5e1',
+  textColor = '#000000',
   fontSize = 0.025,
 }) {
   const [w, h] = size
   return (
     <group position={position} rotation={[-Math.PI / 2, 0, 0]} >
-      <mesh renderOrder={0}>
-        <planeGeometry args={[w, h]} />
-        <meshBasicMaterial color={bg} transparent opacity={opacity} depthWrite={false} side={2} />
-      </mesh>
-      <Text renderOrder={2} depthTest={false} position={[0, 0, 0.001]} fontSize={fontSize} color={textColor}
-        anchorX="center" anchorY="middle" maxWidth={w * 0.95} lineHeight={1.05}>
-        {text}
-      </Text>
+      
+      <BitmapText
+        text={text}
+        position={[-(w * 0.475), 0, 0.001]}
+        rotation={[Math.PI,0,0]}
+        scale={[fontSize, fontSize, fontSize]}
+        color={textColor}
+        align="left"
+        anchorY="middle"
+        maxWidth={(w * 0.95) / fontSize}
+        lineHeight={1.05}
+      />
     </group>
   )
 }
@@ -44,9 +48,9 @@ export default function TonePad({
   padGapX = 0.14, padGapY = 0.14,
   labelOffset = [0, 0, -0.08],
   labelSize = [0.1, 0.06],
-  synth,        // parent synth state (current)
-  onChange,     // { reverbMix, reverbRoomSize, octave } patcher
-  onNote,       // (midi) => void  // NEW: notify recorder while recording
+  synth,
+  onChange,
+  onNote,
 }) {
   const {
     waveform, attack, decay, sustain, release,
@@ -77,10 +81,9 @@ export default function TonePad({
 
   const onPadPress = useCallback((midi) => {
     triggerNote(midi, duration)
-    onNote?.(midi) // notify recorder if recording is on
+    onNote?.(midi)
   }, [triggerNote, duration, onNote])
 
-  // Dial positions (relative to leftOrigin)
   const mixPos = [leftOrigin[0] - reverbDialGapX * 0.5, leftOrigin[2], leftOrigin[1] + dialRowGapY * 0.5]
   const roomPos = [leftOrigin[0] + reverbDialGapX * 0.5, leftOrigin[2], leftOrigin[1] + dialRowGapY * 0.5]
   const octPos = [leftOrigin[0], leftOrigin[2], leftOrigin[1] - dialRowGapY * 0.5]
@@ -104,49 +107,21 @@ export default function TonePad({
 
   return (
     <group position={position}>
-      {/* Reverb mix */}
-      <Dial
-        position={mixPos}
-        size={size}
-        baseColor={dialBaseColor}
-        dialColor={dialColor}
-        range={[0, 1]}
-        step={0.05}
-        stepAngle={Math.PI / 18}
-        value={reverbMix}
-        onChange={(v) => onChange?.({ reverbMix: +v.toFixed(2) })}
-      />
+      <Dial position={mixPos} size={size} baseColor={dialBaseColor} dialColor={dialColor}
+            range={[0, 1]} step={0.05} stepAngle={Math.PI/18}
+            value={reverbMix} onChange={(v) => onChange?.({ reverbMix: +v.toFixed(2) })} />
       <InfoPlate position={mixLabelPos} size={labelSize} text={`Mix: ${pct(reverbMix)}`} />
 
-      {/* Reverb room size */}
-      <Dial
-        position={roomPos}
-        size={size}
-        baseColor={dialBaseColor}
-        dialColor={dialColor}
-        range={[0, 1]}
-        step={0.05}
-        stepAngle={Math.PI / 18}
-        value={reverbRoomSize}
-        onChange={(v) => onChange?.({ reverbRoomSize: +v.toFixed(2) })}
-      />
+      <Dial position={roomPos} size={size} baseColor={dialBaseColor} dialColor={dialColor}
+            range={[0, 1]} step={0.05} stepAngle={Math.PI/18}
+            value={reverbRoomSize} onChange={(v) => onChange?.({ reverbRoomSize: +v.toFixed(2) })} />
       <InfoPlate position={roomLabelPos} size={labelSize} text={`Room: ${pct(reverbRoomSize)}`} />
 
-      {/* Octave */}
-      <Dial
-        position={octPos}
-        size={size}
-        baseColor={dialBaseColor}
-        dialColor={dialColor}
-        range={[-2, 2]}
-        step={1}
-        stepAngle={Math.PI / 12}
-        value={Math.round(octave)}
-        onChange={(v) => onChange?.({ octave: Math.round(v) })}
-      />
+      <Dial position={octPos} size={size} baseColor={dialBaseColor} dialColor={dialColor}
+            range={[-2, 2]} step={1} stepAngle={Math.PI/12}
+            value={Math.round(octave)} onChange={(v) => onChange?.({ octave: Math.round(v) })} />
       <InfoPlate position={octLabelPos} size={labelSize} text={`Octave: ${Math.round(octave)}`} />
 
-      {/* 2×4 tone pads */}
       <group>
         {pads.map(({ i, pos }) => {
           const { midi, label } = noteLayout[i] ?? noteLayout[noteLayout.length - 1]
@@ -164,7 +139,7 @@ export default function TonePad({
               buttonColor={padButtonColor}
               showLabel
               label={label}
-              labelColor="#ffffff"
+              labelColor="#000000"
               onPressed={() => onPadPress(midi)}
               onPressDown={() => {}}
               onPressUp={() => {}}
