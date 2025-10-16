@@ -264,9 +264,9 @@ export default function PlayBackRecorder({
         mutes={mutes}
         stepSeconds={recDuration}
         playhead={playhead}
-        position={[-0.3, 0.15, -1.2]}
+        position={[-0.3, 0.25, -1.2]}
         rotation={[-Math.PI / 2, 0, 0]}
-        scale={0.9}
+        scale={1.8}
       />
     </group>
   )

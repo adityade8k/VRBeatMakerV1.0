@@ -84,7 +84,7 @@ export default function SequenceVisualizer({
           <BitmapText
             text={`T${r + 1}${mutes?.[r] ? ' (M)' : ''}`}
             position={[-(halfW + 0.065), 0.0, (r * strideZ) - halfH]}
-            rotation={[Math.PI / 2, 0, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
             scale={[0.04, 0.04, 0.04]}
             color={mutes?.[r] ? '#94a3b8' : (r === selectedTrack ? '#2563eb' : '#334155')}
             align="right"
@@ -119,7 +119,7 @@ export default function SequenceVisualizer({
                   <BitmapText
                     text={label}
                     position={[0, -0.05, 0]}
-                    rotation={[Math.PI / 2, 0, 0]}
+                    rotation={[-Math.PI / 2, 0, 0]}
                     scale={[0.028, 0.028, 0.028]}
                     color="#0f172a"
                     align="center"
