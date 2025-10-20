@@ -80,15 +80,15 @@ export default function SceneCanvas({ store }) {
   ])
 
   return (
-    <Canvas dpr={[1, 2]} camera={{ position: [0, 1.2, 2.2], fov: 60 }}>
+    <Canvas dpr={[1, 2]} camera={{ position: [0, 1.5, 1.1], fov:30, rotation: [ -0.3, 0, 0 ] }}>
        <BitmapTextProvider useMipmaps={false} toneMapped={false}>
       <color attach="background" args={['#000000']} />
       <XR store={store}>
         <ambientLight intensity={0.8} />
         <directionalLight position={[2, 3, 1]} intensity={0.9} />
         <ConsolePanel
-          rotation={[0, 0, 0]}
-          position={[-0.55, 0.78, -0.32]}
+          rotation={[0.4, 0, 0]}
+          position={[-0.55, 0.78, -0.2]}
           // position={[-0.5, 0.6, 1.7]}
           scale={0.8}
           synth={synthParams}
