@@ -129,7 +129,7 @@ export default function SceneCanvas({ store, onExposeSave }) {
   // ───────── Synth ─────────
   const [synth, setSynth] = useState({
     waveform: 'sine',
-    attack: 0.02, decay: 0.12, sustain: 0.8, release: 0.2,
+    attack: 0.02, decay: 0.12, sustain: 0.8, release: 0.02,
     duration: 0.13,
     reverbMix: 0.25, reverbRoomSize: 0.30,
     octave: 0,
