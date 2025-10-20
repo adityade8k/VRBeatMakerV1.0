@@ -6,22 +6,18 @@ import BitmapText from '../../components/bitmapText'
 
 function InfoPlate({
   position = [0, 0, 0],
-  rotation = [Math.PI, 0, 0],
   size = [0.16, 0.06],
-  bg = '#0f172a',
-  opacity = 0.8,
   text = '',
   textColor = '#000000',
   fontSize = 0.025,
 }) {
-  const [w, h] = size
+  const [w] = size
   return (
-    <group position={position} rotation={[-Math.PI / 2, 0, 0]} >
-      
+    <group position={position} rotation={[-Math.PI / 2, 0, 0]}>
       <BitmapText
         text={text}
         position={[-(w * 0.475), 0, 0.001]}
-        rotation={[Math.PI,0,0]}
+        rotation={[Math.PI, 0, 0]}
         scale={[fontSize, fontSize, fontSize]}
         color={textColor}
         align="left"
@@ -48,9 +44,14 @@ export default function TonePad({
   padGapX = 0.14, padGapY = 0.14,
   labelOffset = [0, 0, -0.08],
   labelSize = [0.1, 0.06],
+
+  // synth + controls
   synth,
   onChange,
-  onNote,
+
+  // NEW: recording props
+  armed = false,
+  onRecordEvent,   // function({ midi, duration, [synth?] })
 }) {
   const {
     waveform, attack, decay, sustain, release,
@@ -67,8 +68,8 @@ export default function TonePad({
   const noteLayout = useMemo(() => {
     const baseOct = 4 + Math.round(octave)
     const baseMidiC = 12 * (baseOct + 1)
-    const offsets = [0, 2, 4, 5, 7, 9, 11, 12]
-    const names = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C']
+    const offsets = [0, 2, 4, 5, 7, 9, 11, 12] // C D E F G A B C
+    const names   = ['C','D','E','F','G','A','B','C']
     return offsets.map((off, i) => {
       const midi = baseMidiC + off
       const nOct = Math.floor(midi / 12) - 1
@@ -80,17 +81,21 @@ export default function TonePad({
   const pct = (x) => `${Math.round(clamp01(x) * 100)}%`
 
   const onPadPress = useCallback((midi) => {
-    triggerNote(midi, duration)
-    onNote?.(midi)
-  }, [triggerNote, duration, onNote])
+    const dur = Number.isFinite(duration) ? duration : 0.25
+    // play immediately
+    triggerNote(midi, dur)
+    // record if armed
+    if (armed && onRecordEvent) {
+      onRecordEvent({ midi, duration: dur })
+    }
+  }, [triggerNote, duration, armed, onRecordEvent])
 
-  const mixPos = [leftOrigin[0] - reverbDialGapX * 0.5, leftOrigin[2], leftOrigin[1] + dialRowGapY * 0.5]
+  const mixPos  = [leftOrigin[0] - reverbDialGapX * 0.5, leftOrigin[2], leftOrigin[1] + dialRowGapY * 0.5]
   const roomPos = [leftOrigin[0] + reverbDialGapX * 0.5, leftOrigin[2], leftOrigin[1] + dialRowGapY * 0.5]
-  const octPos = [leftOrigin[0], leftOrigin[2], leftOrigin[1] - dialRowGapY * 0.5]
-
-  const mixLabelPos = [mixPos[0] + labelOffset[0], mixPos[1] + labelOffset[1], mixPos[2] + labelOffset[2]]
+  const octPos  = [leftOrigin[0], leftOrigin[2], leftOrigin[1] - dialRowGapY * 0.5]
+  const mixLabelPos  = [mixPos[0] + labelOffset[0],  mixPos[1] + labelOffset[1],  mixPos[2] + labelOffset[2]]
   const roomLabelPos = [roomPos[0] + labelOffset[0], roomPos[1] + labelOffset[1], roomPos[2] + labelOffset[2]]
-  const octLabelPos = [octPos[0] + labelOffset[0], octPos[1] + labelOffset[1], octPos[2] + labelOffset[2]]
+  const octLabelPos  = [octPos[0] + labelOffset[0],  octPos[1] + labelOffset[1],  octPos[2] + labelOffset[2]]
 
   const pads = useMemo(() => {
     const items = []

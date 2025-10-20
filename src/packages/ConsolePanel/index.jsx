@@ -65,12 +65,15 @@ export default function ConsolePanel({
       />
 
       {/* TonePad (records into current slot when recording is ON) */}
+
       <TonePad
         position={[0.85, 0, -0.075]}
         synth={synth}
         onChange={onSynthPatch}
-        onNote={(midi) => onRecordedNote?.(midi)}
+        armed={recording}                 // ✅ tell TonePad recording is ON/OFF
+        onRecordEvent={onRecordedNote}    // ✅ pass the callback that writes to sequence
       />
+
     </group>
   )
 }
