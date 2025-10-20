@@ -29,6 +29,8 @@ export default function SequenceVisualizer({
   scale = 0.9,
   cellSize = [0.08, 0.04, 0.08],
   gap = 0.02,
+  showColumnLabels = true,
+  columnLabelOffset = 0.085,   // distance above the first row
 }) {
   const rows = 5, cols = 16
 
@@ -78,12 +80,39 @@ export default function SequenceVisualizer({
 
   return (
     <group position={position} rotation={rotation} scale={[scale, scale, scale]}>
+      {/* ───────── Column labels (1–16) ───────── */}
+      {showColumnLabels && (
+        <group>
+          {Array.from({ length: cols }).map((_, c) => {
+            const x = (c * strideX) - halfW
+            const z = -(halfH + columnLabelOffset)
+            const isPlayCol = playing && c === activeCol
+            const isSelectedCol = selectedSlots?.includes?.(c)
+            const color = isPlayCol ? '#16a34a' : (isSelectedCol ? '#2563eb' : '#334155')
+            return (
+              <BitmapText
+                key={`col-label-${c}`}
+                text={`${c + 1}`}
+                position={[x, 0, z]}
+                rotation={[-Math.PI / 2, 0, 0]}
+                scale={[0.032, 0.032, 0.032]}
+                color={color}
+                align="center"
+                anchorY="middle"
+                maxWidth={(cw * 1.2) / 0.032}
+              />
+            )
+          })}
+        </group>
+      )}
+
+      {/* ───────── Rows + Cells ───────── */}
       {Array.from({ length: rows }).map((_, r) => (
         <group key={`row-${r}`}>
           {/* Row label */}
           <BitmapText
             text={`T${r + 1}${mutes?.[r] ? ' (M)' : ''}`}
-            position={[-(halfW + 0.065), 0.0, (r * strideZ) - halfH]}
+            position={[-(halfW + 0.05), 0.0, (r * strideZ) - halfH]}
             rotation={[-Math.PI / 2, 0, 0]}
             scale={[0.04, 0.04, 0.04]}
             color={mutes?.[r] ? '#94a3b8' : (r === selectedTrack ? '#2563eb' : '#334155')}
@@ -102,11 +131,7 @@ export default function SequenceVisualizer({
 
             return (
               <group key={`cell-${r}-${c}`} position={[x, 0, z]}>
-                {/* <mesh>
-                  <boxGeometry args={cellSize} />
-                  <meshStandardMaterial color={color} transparent opacity={opacity} />
-                </mesh> */}
-                <mesh position={[0, ch / 2 + 0.001, 0]}>
+                <mesh position={[0, ch / 2 + 0.00, 0]}>
                   <boxGeometry args={[cw * 0.98, 0.0025, cd * 0.98]} />
                   <meshStandardMaterial
                     color={isActive ? '#16a34a' : color}
