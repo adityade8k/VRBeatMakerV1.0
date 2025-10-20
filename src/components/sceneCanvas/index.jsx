@@ -235,14 +235,14 @@ export default function SceneCanvas({ store, onExposeSave }) {
   ])
 
   return (
-    <Canvas dpr={[1, 2]} camera={{ position: [0, 5, 7], fov: 10 }}>
+    <Canvas dpr={[1, 2]} camera={{ position: [0, 1.3,2.3], fov: 60, rotation: [-0.4, 0, 0] }}>
       <BitmapTextProvider useMipmaps={false} toneMapped={false}>
         <color attach="background" args={['#000000']} />
         <XR store={store}>
           <ambientLight intensity={0.8} />
           <directionalLight position={[2, 3, 1]} intensity={0.9} />
           <ConsolePanel
-            rotation={[0.2, 0, 0]}
+            rotation={[0.4, 0, 0]}
             position={[-0.53, 0.7, 1.72]}
             scale={0.8}
             synth={synthParams}
