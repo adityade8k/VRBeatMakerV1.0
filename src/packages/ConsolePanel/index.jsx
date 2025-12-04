@@ -45,10 +45,27 @@ export default function ConsolePanel({
         sustain={synth.sustain}
         release={synth.release}
         duration={synth.duration}
+        waveform={synth.waveform}
+        reverbMix={synth.reverbMix}
+        reverbRoomSize={synth.reverbRoomSize}
         onChange={onADSRChange}
+        onLoadInstrument={(settings) => {
+          onWaveChange(settings.waveform)
+          onSynthPatch({
+            attack: settings.attack,
+            decay: settings.decay,
+            sustain: settings.sustain,
+            release: settings.release,
+            duration: settings.duration,
+            reverbMix: settings.reverbMix,
+            reverbRoomSize: settings.reverbRoomSize,
+          })
+        }}
         showInfoPanel
         infoPanelOffset={[0.061, 0, -0.3]}
         infoPanelSize={[0.34, 0.2]}
+        showInstrumentsPanel
+        instrumentsPanelOffset={[0.32, 0, -0.35]}
       />
 
       {/* Playback + Visualizer live inside this module now */}

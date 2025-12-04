@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import Roller from '../../components/roller'
 import Dial from "../../components/dial"
 import BitmapText from '../../components/bitmapText'
+import InstrumentsPanel from '../InstrumentsPanel'
 
 export default function ADSRController({
   position = [0, 0, 0],
@@ -22,6 +23,9 @@ export default function ADSRController({
   sustain = 0.8,
   release = 0.2,
   duration = 0.5,
+  waveform = 'sine',
+  reverbMix = 0.25,
+  reverbRoomSize = 0.30,
 
   A_RANGE = [0.005, 2.0],
   D_RANGE = [0.01, 2.0],
@@ -30,6 +34,7 @@ export default function ADSRController({
   DUR_RANGE = [0.05, 4.0],
 
   onChange = () => {},
+  onLoadInstrument = () => {},
 
   showInfoPanel = true,
   infoPanelOffset,
@@ -37,6 +42,9 @@ export default function ADSRController({
   infoPanelBg = '#0f172a',
   infoText = '#000000',
   infoFontSize = 0.025,
+
+  showInstrumentsPanel = true,
+  instrumentsPanelOffset,
 }) {
   const A_pos = [-gridSpacingX * 0.5, 0, -gridSpacingZ]
   const D_pos = [ gridSpacingX * 0.5, 0, -gridSpacingZ]
@@ -97,6 +105,23 @@ export default function ADSRController({
             />
           ))}
         </group>
+      )}
+
+      {showInstrumentsPanel && (
+        <InstrumentsPanel
+          position={instrumentsPanelOffset ?? [gridSpacingX * 2.2, 0, -gridSpacingZ * 1.5]}
+          currentSettings={{
+            waveform,
+            attack,
+            decay,
+            sustain,
+            release,
+            duration,
+            reverbMix,
+            reverbRoomSize,
+          }}
+          onLoadInstrument={onLoadInstrument}
+        />
       )}
     </group>
   )
